@@ -24,7 +24,7 @@ jobs:
     parameters:
       game:
         type: string
-    working_directory: /<< parameters.game >>
+    working_directory: ~/project/<< parameters.game >>
     executor: docker-executor
     steps:
       - checkout
@@ -44,7 +44,7 @@ jobs:
       version:
         type: integer
         default: 1
-    working_directory: /<< parameters.game >>
+    working_directory: ~/project/<< parameters.game >>
     executor: docker-executor
     steps:
       - checkout
