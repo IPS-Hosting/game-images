@@ -5,23 +5,23 @@ set -o pipefail
 
 # Downloads the alt:V updater, overwriting any previous or potentially modified version.
 function ensure_altv_updater() {
-  mkdir -vp /home/ips-hosting
+	mkdir -vp /home/ips-hosting
 	cd /home/ips-hosting
 	wget -vO 'update.sh' 'https://raw.githubusercontent.com/Lhoerion/altv-serverupdater/master/update.sh'
 	chmod +x ./update.sh
 }
 
 function install_update() {
-  echo "Ensuring the alt:V updater is installed and up to date"
-  ensure_altv_updater
-  cd /home/ips-hosting
+	echo "Ensuring the alt:V updater is installed and up to date"
+	ensure_altv_updater
+	cd /home/ips-hosting
 
-  echo "Ensuring server files are installed and up to date"
-  ./update.sh
+	echo "Ensuring server files are installed and up to date"
+	./update.sh
 
-  if [ -f "package-lock.json" ]; then
+	if [ -f "package-lock.json" ]; then
 		echo "Installing dependencies using npm ci"
-  	npm ci
+		npm ci
 	elif [ -f "yarn.lock" ]; then
 		if [ -d ".yarn" ]; then
 			echo "Installing dependencies using yarn install --immutable"
@@ -39,19 +39,19 @@ function install_update() {
 }
 
 function start() {
-  cd /home/ips-hosting
-  ./altv-server --config ./server.cfg --host "${HOST:-0.0.0.0}" --port "${PORT:-7788}"
+	cd /home/ips-hosting
+	./altv-server --config ./server.cfg --host "${HOST:-0.0.0.0}" --port "${PORT:-7788}"
 }
 
 case "$1" in
 install_update)
-  install_update
-  ;;
+	install_update
+	;;
 start)
-  start
-  ;;
+	start
+	;;
 *)
-  install_update
-  start
-  ;;
+	install_update
+	start
+	;;
 esac
