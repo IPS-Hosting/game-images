@@ -10,6 +10,7 @@ executors:
         auth:
           username: $DOCKERHUB_USER
           password: $DOCKERHUB_PASSWORD
+    resource_class: small
 
 parameters:
   run-build-altv:
