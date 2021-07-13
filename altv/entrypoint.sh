@@ -39,8 +39,10 @@ function install_update() {
 }
 
 function start() {
+	local start_command="./altv-server --config ./server.cfg --host ${HOST:-0.0.0.0} --port ${PORT:-7788}"
 	cd /home/ips-hosting
-	./altv-server --config ./server.cfg --host "${HOST:-0.0.0.0}" --port "${PORT:-7788}"
+	echo "$start_command"
+	eval "$start_command"
 }
 
 case "$1" in

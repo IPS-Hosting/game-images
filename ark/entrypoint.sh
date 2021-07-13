@@ -228,6 +228,7 @@ function start() {
 	fi
 
 	cd /home/ips-hosting/ShooterGame/Binaries/Linux
+	echo "$start_command"
 	eval "$start_command"
 }
 
