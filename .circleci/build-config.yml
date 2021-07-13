@@ -1,0 +1,94 @@
+version: 2.1
+
+orbs:
+  docker: circleci/docker@1.6.0
+
+executors:
+  docker-executor:
+    docker:
+      - image: cimg/base:2021.04
+        auth:
+          username: $DOCKERHUB_USER
+          password: $DOCKERHUB_PASSWORD
+
+parameters:
+  run-build-altv:
+    type: boolean
+    default: false
+  run-build-ark:
+    type: boolean
+    default: false
+
+jobs:
+  deploy-dev-image:
+    parameters:
+      game:
+        type: string
+    working_directory: /<< parameters.game >>
+    executor: docker-executor
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 19.03.13
+      - docker/build:
+          image: ipshosting/game-<< parameters.game >>
+          tag: $CIRCLE_SHA1
+      - docker/push:
+          image: ipshosting/game-<< parameters.game >>
+          tag: $CIRCLE_SHA1
+
+  deploy-prod-image:
+    parameters:
+      game:
+        type: string
+      version:
+        type: integer
+        default: 1
+    working_directory: /<< parameters.game >>
+    executor: docker-executor
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 19.03.13
+      - docker/build:
+          image: ipshosting/game-<< parameters.game >>
+          tag: v<< parameters.version >>,latest,$CIRCLE_SHA1
+      - docker/push:
+          image: ipshosting/game-<< parameters.game >>
+          tag: v<< parameters.version >>,latest,$CIRCLE_SHA1
+      - docker/update-description:
+          image: ipshosting/game-<< parameters.game >>
+
+workflows:
+  altv:
+    when: << pipeline.parameters.run-build-altv >>
+    jobs:
+      - deploy-dev-image:
+          game: altv
+          filters:
+            branches:
+              ignore: main
+
+      - deploy-prod-image:
+          game: altv
+          version: 2
+          filters:
+            branches:
+              only: main
+
+  ark:
+    when: << pipeline.parameters.run-build-ark >>
+    jobs:
+      - deploy-dev-image:
+          game: ark
+          filters:
+            branches:
+              ignore: main
+
+      - deploy-prod-image:
+          game: ark
+          version: 2
+          filters:
+            branches:
+              only: main
+              

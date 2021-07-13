@@ -1,0 +1,33 @@
+version: 2.1
+
+setup: true
+
+orbs:
+  path-filtering: circleci/path-filtering@0.0.2
+  continuation: circleci/continuation@0.2.0
+
+workflows:
+  weekly-rebuild:
+    triggers:
+      - schedule:
+          cron: 0 0 * * 0
+          filters:
+            branches:
+              only: main
+    jobs:
+      - continuation/continue:
+          configuration_path: .circleci/build-config.yml
+          parameters: |-
+            {
+              "run-build-altv": true,
+              "run-build-ark": true
+            }
+
+  check-updated-files:
+    jobs:
+      - path-filtering/filter:
+          base-revision: main
+          config-path: .circleci/build-config.yml
+          mapping: |
+            altv/.* run-build-altv true
+            ark/.* run-build-ark true
