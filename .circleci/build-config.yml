@@ -24,13 +24,13 @@ jobs:
     parameters:
       game:
         type: string
-    working_directory: ~/project/<< parameters.game >>
     executor: docker-executor
     steps:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
       - docker/build:
+          path: ./<< parameters.game >>
           image: ipshosting/game-<< parameters.game >>
           tag: $CIRCLE_SHA1
       - docker/push:
@@ -44,19 +44,20 @@ jobs:
       version:
         type: integer
         default: 1
-    working_directory: ~/project/<< parameters.game >>
     executor: docker-executor
     steps:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
       - docker/build:
+          path: ./<< parameters.game >>
           image: ipshosting/game-<< parameters.game >>
           tag: v<< parameters.version >>,latest,$CIRCLE_SHA1
       - docker/push:
           image: ipshosting/game-<< parameters.game >>
           tag: v<< parameters.version >>,latest,$CIRCLE_SHA1
       - docker/update-description:
+          path: ./<< parameters.game >>
           image: ipshosting/game-<< parameters.game >>
 
 workflows:
