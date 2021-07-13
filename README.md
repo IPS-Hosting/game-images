@@ -1,4 +1,6 @@
 # game-images
+[![CircleCI](https://circleci.com/gh/IPS-Hosting/game-images/tree/main.svg?style=svg)](https://circleci.com/gh/IPS-Hosting/game-images/tree/main)
+
 Docker images for the following games:
 
 * [alt:V](altv/README.md)
