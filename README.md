@@ -27,8 +27,6 @@ On every push to the main branch, all images that were changed are automatically
 
 On every push to all other branches except main, all images that were changed are automatically rebuilt and deployed to Docker Hub using the SHA1 hash of the commit as the tag.
 
-In addition, every image is rebuilt every Sunday at 00:00 to get the latest security patches. 
-
 The image version is configured in the `.circleci/build-config.yml` file and should be raised whenever a breaking change is introduced to a game image.
 
 PRs are welcome!
