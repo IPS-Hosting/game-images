@@ -7,7 +7,7 @@ For advanced usage, refer to https://docs.docker.com
 docker create -it --restart always \
   --name altv-server \
   -p 7788:7788/tcp \
-  -p 7788:7788/udp\
+  -p 7788:7788/udp \
   ipshosting/game-altv:v2
   
 # Start the server
