@@ -85,10 +85,10 @@ The following env variables are always available during `start`.
 
 `TICKRATE` The tickrate to use. Defaults to `66`.
 
-`GAME_TYPE` and `GAME_MODE` together specify which game mode the server runs.
+`GAME_TYPE` and `GAME_MODE` together specify which game mode the server runs. Defaults to Classic Casual (`GAME_TYPE=0` and `GAME_MODE=0`).
 
 Gamemode            | GAME_TYPE | GAME_MODE 
-------------------- | :-------: | ---------
+------------------- | :-------: | :-------:
 Arms Race           | 1			| 0
 Classic Casual      | 0			| 0
 Classic Competitive | 0			| 1
