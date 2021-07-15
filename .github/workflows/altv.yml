@@ -19,6 +19,9 @@ jobs:
     name: Build and push Docker image
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
 
@@ -35,7 +38,7 @@ jobs:
           push: true
           tags: >-
             ipshosting/game-${{ env.GAME }}:latest,
-            ipshosting/game-${{ env.GAME }}:${{ env.VERSION }}
+            ipshosting/game-${{ env.GAME }}:v${{ env.VERSION }}
 
       - name: Update DockerHub description
         uses: peter-evans/dockerhub-description@v2
