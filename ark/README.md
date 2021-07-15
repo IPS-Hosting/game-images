@@ -6,9 +6,11 @@ For advanced usage, refer to https://docs.docker.com
 # Create the docker container
 docker create -it --restart always \
   --name ark-server \
-  -p 7788:7788/tcp \
-  -p 7788:7788/udp\
-  ipshosting/game-altv:v2
+  -p 27020:27020/tcp \
+  -p 27015:27015/udp \
+  -p 7777:7777/udp \
+  -p 7778:7778/udp \
+  ipshosting/game-ark:v2
   
 # Start the server
 docker start ark-server
@@ -48,7 +50,7 @@ To persist the game server data on the host filesystem, use `-v /absolute-path/o
 * 27020/tcp (rcon)
 * 27015/udp (query)
 * 7777/udp (game)
-* 7778/udp (rawSocket) - must be game + 1
+* 7778/udp (rawSocket) - always game+1
 
 You can change the port with the `GAME_PORT`, `QUERY_PORT` and `RCON_PORT` environment variables.
 
@@ -56,15 +58,25 @@ You can change the port with the `GAME_PORT`, `QUERY_PORT` and `RCON_PORT` envir
 Env variables can be configured with the `-e KEY=VAL` flag when creating the container. The flag can be used multiple times.
 To change the env variables, you need to re-create the container.
 
+### update and update_validate
+The following env variables are available during `update` and `update_validate`.
+
+`BETA_BRANCH` Used to download a different branch of the server.
+
+`BETA_PASSWORD` The password for the beta branch.
+
+### start
+The following env variables are available during `start`.
+
 `MAP` The map the server runs on. Defaults to `TheIsland`.
 
 `HOST` The host the server listens on. Defaults to `0.0.0.0`
 
-`GAME_PORT` The udp game port the server listens on. Defaults to `7777`.
+`GAME_PORT` The udp game port the server listens on. Defaults to `7777`. Remember to also update the container port bindings when changing this variable.
 
-`QUERY_PORT` The udp port the server listens on for queries. Defaults to `27015`.
+`QUERY_PORT` The udp port the server listens on for queries. Defaults to `27015`. Remember to also update the container port bindings when changing this variable.
 
-`RCON_PORT` The tcp port the server listens on for rcon. Defaults to `27020`.
+`RCON_PORT` The tcp port the server listens on for rcon. Defaults to `27020`. Remember to also update the container port bindings when changing this variable.
 
 `RCON_ENABLED` Set to `True` to enable rcon and to `False` to disable rcon. Defaults to `True`.
 
