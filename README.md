@@ -1,6 +1,6 @@
 # game-images
 
-Docker images for the following games:
+Game server docker images for the following games:
 
 * [alt:V](altv/README.md)
 * [ARK: Survival Evolved](ark/README.md)
