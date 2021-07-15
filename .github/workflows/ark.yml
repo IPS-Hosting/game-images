@@ -13,6 +13,7 @@ on:
 env:
   GAME: ark
   VERSION: 2
+  DOCKER_HUB_DESCRIPTION: 'ARK: Survival Evolved game server'
 
 jobs:
   build-and-deploy:
@@ -46,3 +47,6 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_PASSWORD }}
           repository: ipshosting/game-${{ env.GAME }}
+          short-description: ${{ env.DOCKER_HUB_DESCRIPTION }}
+          readme-filepath: ./${{ env.GAME }}/README.md
+          
