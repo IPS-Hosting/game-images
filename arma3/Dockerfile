@@ -23,5 +23,4 @@ EXPOSE 2304/udp
 EXPOSE 2305/udp
 EXPOSE 2306/udp
 
-
 ENTRYPOINT ["/bin/bash", "/ips-hosting/entrypoint.sh"]
