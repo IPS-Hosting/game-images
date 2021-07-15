@@ -33,9 +33,9 @@ jobs:
         with:
           context: ./${{ env.GAME }}
           push: true
-          tags:
-            - ipshosting/game-${{ env.GAME }}:latest
-            - ipshosting/game-${{ env.GAME }}:${{ env.VERSION }}
+          tags: >-
+            ipshosting/game-${{ env.GAME }}:latest,
+            ipshosting/game-${{ env.GAME }}:${{ env.VERSION }}
 
       - name: Update DockerHub description
         uses: peter-evans/dockerhub-description@v2
