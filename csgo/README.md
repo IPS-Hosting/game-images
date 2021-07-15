@@ -47,8 +47,7 @@ See https://docs.docker.com/storage/volumes/ for more information.
 
 To persist the game server data on the host filesystem, use `-v /absolute-path/on/host:/home/ips-hosting` when creating the docker container.
 
-# Ports
-
+## Ports
 * 27015/udp (game)
 * 27015/tcp (rcon) always the same as game
 * 27005/tcp (client)

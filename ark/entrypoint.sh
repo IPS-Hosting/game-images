@@ -4,8 +4,8 @@ set -o errexit
 set -o pipefail
 
 function apply_fixes() {
-	ensure_steamcmd
 	# Fixes: [S_API FAIL] SteamAPI_Init() failed; unable to locate a running instance of Steam,or a local steamclient.so.
+	ensure_steamcmd
 	if [ ! -f "/home/ips-hosting/.steam/sdk32/steamclient.so" ]; then
 		mkdir -vp /home/ips-hosting/.steam/sdk32
 		cp -v /ips-hosting/steamcmd/linux32/steamclient.so /home/ips-hosting/.steam/sdk32/steamclient.so

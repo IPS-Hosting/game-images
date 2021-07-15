@@ -4,25 +4,24 @@ set -o errexit
 set -o pipefail
 
 function apply_fixes() {
-  ensure_steamcmd
-  
-  # Fixes: [S_API FAIL] SteamAPI_Init() failed; unable to locate a running instance of Steam,or a local steamclient.so.
-  if [ ! -f "/home/ips-hosting/.steam/sdk32/steamclient.so" ]; then
-    mkdir -vp /home/ips-hosting/.steam/sdk32
-    cp -v /ips-hosting/steamcmd/linux32/steamclient.so /home/ips-hosting/.steam/sdk32/steamclient.so
-  fi
+	# Fixes: [S_API FAIL] SteamAPI_Init() failed; unable to locate a running instance of Steam,or a local steamclient.so.
+	ensure_steamcmd
+	if [ ! -f "/home/ips-hosting/.steam/sdk32/steamclient.so" ]; then
+		mkdir -vp /home/ips-hosting/.steam/sdk32
+		cp -v /ips-hosting/steamcmd/linux32/steamclient.so /home/ips-hosting/.steam/sdk32/steamclient.so
+	fi
 
-  # Fixes: Error parsing BotProfile.db - unknown attribute 'Rank'".
-  # Comments out the Rank attribute.
-  sed -i 's/^\s*Rank/\t\/\/ Rank/g' /home/ips-hosting/csgo/botprofile.db
+	# Fixes: Error parsing BotProfile.db - unknown attribute 'Rank'".
+	# Comments out the Rank attribute.
+	sed -i 's/^\s*Rank/\t\/\/ Rank/g' /home/ips-hosting/csgo/botprofile.db
 
-  # Fixes: Unknown command "cl_bobamt_vert" and more.
-  # Comments out exec default.cfg which includes the unknown commands.
-  sed -i 's/^\s*exec\s*default.cfg/\/\/ exec default.cfg/g' /home/ips-hosting/csgo/cfg/valve.rc
+	# Fixes: Unknown command "cl_bobamt_vert" and more.
+	# Comments out exec default.cfg which includes the unknown commands.
+	sed -i 's/^\s*exec\s*default.cfg/\/\/ exec default.cfg/g' /home/ips-hosting/csgo/cfg/valve.rc
 
-  # Fixes exec: couldn't exec joystick.cfg.
-  # Comments out exec joystick.cfg which doesn't exist.
-  sed -i 's/^\s*exec\s*joystick.cfg/\/\/ exec joystick.cfg/g' /home/ips-hosting/csgo/cfg/valve.rc
+	# Fixes exec: couldn't exec joystick.cfg.
+	# Comments out exec joystick.cfg which doesn't exist.
+	sed -i 's/^\s*exec\s*joystick.cfg/\/\/ exec joystick.cfg/g' /home/ips-hosting/csgo/cfg/valve.rc
 }
 
 function ensure_steamcmd() {
@@ -66,16 +65,15 @@ function update() {
 	apply_fixes
 }
 
-# Starts the game server.
 function start() {
 	local start_command="./srcds_run -game csgo -ip ${HOST:-0.0.0.0} -port ${GAME_PORT:-27015} -clientport ${CLIENT_PORT:-27005} +tv_port ${TV_PORT:-27020} -strictportbind -console -usercon -maxplayers_override ${MAX_PLAYERS:-10} -tickrate ${TICKRATE:-66} +game_type ${GAME_TYPE:-0} +game_mode ${GAME_MODE:-0} +mapgroup ${MAP:-mg_active} +map ${MAP:-de_mirage} +workshop_start_map ${WORKSHOP_START_MAP} +host_workshop_collection ${HOST_WORKSHOP_COLLECTION} -authkey ${AUTHKEY} +sv_setsteamaccount=$GSLT -nobreakpad"
-  if [ "$INSECURE" == "true" ]; then
-    start_command="$start_command -insecure"
-  fi
+	if [ "$INSECURE" == "true" ]; then
+		start_command="$start_command -insecure"
+	fi
 
-  if [ "$NOBOTS" == "true" ]; then
-    start_command="$start_command -nobots"
-  fi
+	if [ "$NOBOTS" == "true" ]; then
+		start_command="$start_command -nobots"
+	fi
 
 	cd /home/ips-hosting
 	echo "$start_command"
