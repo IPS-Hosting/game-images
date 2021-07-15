@@ -11,8 +11,8 @@ docker create -it --restart always \
   -p 2304:2304/udp \
   -p 2305:2305/udp \
   -p 2306:2306/udp \
-  -e STEAM_USERNAME="your_steam_username" \
-  -e STEAM_PASSWORD="your_steam_password" \
+  -e "STEAM_USERNAME=your_steam_username" \
+  -e "STEAM_PASSWORD=your_steam_password" \
   ipshosting/game-arma3:v2
   
 # Start the server
@@ -64,6 +64,8 @@ These credentials need to be specified during `update` and `update_validate` via
 The account must not have Steam guard enabled. Because of that it is not recommended to use your personal Steam account.
 
 ## Env variables
+Env variables can be configured with the `-e "KEY=VAL"` flag when creating the container. The flag can be used multiple times.
+To change the env variables, you need to re-create the container.
 
 ### update and update_validate
 The following env variables are available during `update` and `update_validate`.

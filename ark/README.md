@@ -55,7 +55,7 @@ To persist the game server data on the host filesystem, use `-v /absolute-path/o
 You can change the port with the `GAME_PORT`, `QUERY_PORT` and `RCON_PORT` environment variables.
 
 ## Env variables
-Env variables can be configured with the `-e KEY=VAL` flag when creating the container. The flag can be used multiple times.
+Env variables can be configured with the `-e "KEY=VAL"` flag when creating the container. The flag can be used multiple times.
 To change the env variables, you need to re-create the container.
 
 ### update and update_validate
