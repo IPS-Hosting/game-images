@@ -69,7 +69,7 @@ function install_mods() {
 			if [ ! -d "/home/ips-hosting/Steam/steamapps/workshop/content/107410/${modid}" ]; then
 				echo "Warning! '/home/ips-hosting/Steam/steamapps/workshop/content/107410/${modid}' does not exist"
 			elif [ ! -L "/home/ips-hosting/mods/${modid}" ]; then
-				ln -sv "/home/ips-hosting/Steam/steamapps/workshop/content/107410/${modid}" "/home/ips-hosting/mods/${modid}"
+				ln -sv "../Steam/steamapps/workshop/content/107410/${modid}" "/home/ips-hosting/mods/${modid}"
 			else
 				echo "${modid} is already symlinked"
 			fi
