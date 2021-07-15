@@ -8,7 +8,6 @@ Docker images for the following games:
 * [Arma III](arma3/README.md)
 * [Counter Strike: Global Offensive](csgo/README.md)
 * [Garry's Mod](gmod/README.md)
-* [Onset](onset/README.md)
 * [Rust](rust/README.md)
 * [SCP: Secret Laboratory](scpsl/README.md)
 * [Valheim](valheim/README.md)
