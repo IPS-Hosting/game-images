@@ -1,8 +1,9 @@
 FROM ubuntu:20.04
 
-RUN apt-get update \
+RUN export DEBIAN_FRONTEND=noninteractive \
 	&& groupadd -g 1000 ips-hosting \
 	&& useradd -m -d /home/ips-hosting -u 1000 -g 1000 ips-hosting \
+	&& apt-get update \
 	&& apt-get install -y lib32stdc++6 lib32gcc1 wget tar net-tools rename \
 	&& apt-get clean \
 	&& rm -rf /var/lib/apt/* /tmp/* /var/tmp/*
