@@ -9,6 +9,12 @@ function error() {
 	exit 1
 }
 
+function check_steam_credentials() {
+	if [ -z "$STEAM_USERNAME" ] || [ -z "$STEAM_PASSWORD" ]; then
+		error "Missing steam login information."
+	fi
+}
+
 function apply_fixes() {
 	# Fixes: [S_API FAIL] SteamAPI_Init() failed; unable to locate a running instance of Steam,or a local steamclient.so.
 	ensure_steamcmd
@@ -79,6 +85,7 @@ function install_mods() {
 }
 
 function update_validate() {
+	check_steam_credentials
 	ensure_steamcmd
 	cd /ips-hosting/steamcmd
 
@@ -95,6 +102,7 @@ function update_validate() {
 }
 
 function update() {
+	check_steam_credentials
 	ensure_steamcmd
 	cd /ips-hosting/steamcmd
 
