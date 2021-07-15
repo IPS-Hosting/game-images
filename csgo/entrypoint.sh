@@ -70,7 +70,6 @@ function start() {
 	if [ "$INSECURE" == "true" ]; then
 		start_command="$start_command -insecure"
 	fi
-
 	if [ "$NOBOTS" == "true" ]; then
 		start_command="$start_command -nobots"
 	fi
