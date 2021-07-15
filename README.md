@@ -22,6 +22,8 @@ On every push to the main branch, all images that were changed are automatically
 * The image version (e.g. v1, v2, ...)
 * latest
 
+In addition, each image is rebuilt and deployed weekly at Sunday 00:00 to keep up with latest security patches.
+
 The image version is configured as an env variable in the workflow file of the game in the `.github/workflows/` directory and should be raised whenever a breaking change is introduced to a game image.
 
 PRs are welcome!
