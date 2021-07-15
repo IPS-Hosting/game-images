@@ -3,8 +3,8 @@
 set -o errexit
 set -o pipefail
 
-# Requires steamcmd to be mounted.
 function apply_fixes() {
+	ensure_steamcmd
 	# Fixes: [S_API FAIL] SteamAPI_Init() failed; unable to locate a running instance of Steam,or a local steamclient.so.
 	if [ ! -f "/home/ips-hosting/.steam/sdk32/steamclient.so" ]; then
 		mkdir -vp /home/ips-hosting/.steam/sdk32
@@ -198,7 +198,6 @@ function update() {
 	download_mods
 }
 
-# Starts the game server.
 function start() {
 	local start_command="./ShooterGameServer ${MAP:-TheIsland}?listen?MultiHome=${HOST:-0.0.0.0}?Port=${GAME_PORT:-7777}?QueryPort=${QUERY_PORT:-27015}?RCONPort=${RCON_PORT:-27020}?RCONEnabled=${RCON_ENABLED:-True}?MaxPlayers=${MAX_PLAYERS:-10}"
 	if [ -n "$SESSION_NAME" ]; then
