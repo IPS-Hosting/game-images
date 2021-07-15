@@ -19,6 +19,9 @@ parameters:
   run-build-ark:
     type: boolean
     default: false
+  run-build-arma3:
+    type: boolean
+    default: false
 
 jobs:
   deploy-dev-image:
@@ -93,4 +96,18 @@ workflows:
           filters:
             branches:
               only: main
-              
+  arma3:
+    when: << pipeline.parameters.run-build-arma3 >>
+    jobs:
+      - deploy-dev-image:
+          game: arma3
+          filters:
+            branches:
+              ignore: main
+
+      - deploy-prod-image:
+          game: arma3
+          version: 2
+          filters:
+            branches:
+              only: main

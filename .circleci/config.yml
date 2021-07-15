@@ -15,3 +15,4 @@ workflows:
           mapping: |
             altv/.* run-build-altv true
             ark/.* run-build-ark true
+            arma3/.* run-build-arma3 true
