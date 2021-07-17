@@ -1,0 +1,52 @@
+name: "Build Rust"
+
+on:
+  schedule:
+    - cron: 0 0 * * 0
+
+  push:
+    branches:
+      - main
+    paths:
+      - 'rust/**'
+
+env:
+  GAME: rust
+  VERSION: 2
+  DOCKER_HUB_DESCRIPTION: "Rust game server"
+
+jobs:
+  build-and-deploy:
+    name: Build and push Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1 
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: ./${{ env.GAME }}
+          push: true
+          tags: >-
+            ipshosting/game-${{ env.GAME }}:latest,
+            ipshosting/game-${{ env.GAME }}:v${{ env.VERSION }}
+
+      - name: Update DockerHub description
+        uses: peter-evans/dockerhub-description@v2
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+          repository: ipshosting/game-${{ env.GAME }}
+          short-description: ${{ env.DOCKER_HUB_DESCRIPTION }}
+          readme-filepath: ./${{ env.GAME }}/README.md
+          
