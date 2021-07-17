@@ -1,4 +1,4 @@
-# Counter Strike: Global Offensive
+# Garry's Mod
 
 ## Basic usage
 For advanced usage, refer to https://docs.docker.com
