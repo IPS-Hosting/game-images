@@ -51,12 +51,6 @@ To persist the game server data on the host filesystem, use `-v /absolute-path/o
 
 You can change the port with the `GAME_PORT` environment variable.
 
-## Game content
-CSS is automatically downloaded and mounted during `update_validate`.
-Content is placed in `/home/ips-hosting/.ips-hosting/game-content/cstrike`.
-This is required because many maps use props from CSS. Without the content being mounted on the server, those props have no physics.
-Things that are not needed for content like maps are not kept to reduce disk usage.
-
 ## Env variables
 Env variables can be configured with the `-e "KEY=VAL"` flag when creating the container. The flag can be used multiple times.
 To change the env variables, you need to re-create the container.
