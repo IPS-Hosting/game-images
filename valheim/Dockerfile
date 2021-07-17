@@ -8,7 +8,7 @@ RUN DEBIAN_FRONTEND=noninteractive \
 	&& apt-get clean \
 	&& rm -rf /var/lib/apt/* /tmp/* /var/tmp/*
 
-COPY --chown=ips-hosting:ips-hosting --chmod=777 ./entrypoint.sh ./mount.cfg /ips-hosting/
+COPY --chown=ips-hosting:ips-hosting --chmod=777 ./entrypoint.sh /ips-hosting/
 
 USER ips-hosting
 WORKDIR /home/ips-hosting
