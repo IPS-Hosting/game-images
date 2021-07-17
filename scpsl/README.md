@@ -6,9 +6,8 @@ For advanced usage, refer to https://docs.docker.com
 # Create the docker container
 docker create -it --restart always \
   --name scpsl-server \
-  -p 28015:28015/udp \
-  -p 28015:28015/tcp \
-  -p 28082:28082/tcp \
+  -p 7777:7777/udp \
+  -p 7777:7777/tcp \
   ipshosting/game-scpsl:v2
   
 # Start the server

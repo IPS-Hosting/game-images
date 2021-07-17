@@ -15,8 +15,7 @@ USER ips-hosting
 WORKDIR /home/ips-hosting
 VOLUME /home/ips-hosting
 
-EXPOSE 28015/udp
-EXPOSE 28015/tcp
-EXPOSE 28082/tcp
+EXPOSE 7777/udp
+EXPOSE 7777/tcp
 
 ENTRYPOINT ["/bin/bash", "/ips-hosting/entrypoint.sh"]
