@@ -1,4 +1,4 @@
-# scpsl
+# SCP: Secret Laboratory
 
 ## Basic usage
 For advanced usage, refer to https://docs.docker.com
