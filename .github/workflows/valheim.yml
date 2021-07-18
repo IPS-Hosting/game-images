@@ -1,4 +1,4 @@
-name: "Valheim"
+name: "Build Valheim"
 
 on:
   schedule:
