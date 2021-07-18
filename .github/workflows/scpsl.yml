@@ -1,4 +1,4 @@
-name: "SCP: Secret Laboratory"
+name: "Build SCP: Secret Laboratory"
 
 on:
   schedule:
