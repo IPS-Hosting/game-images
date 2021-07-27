@@ -1,7 +1,7 @@
 FROM ubuntu:20.04
 
 # libGDI+ is required by some popular plugins like https://umod.org/plugins/sign-artist
-RUN DEBIAN_FRONTEND=noninteractive \
+RUN export DEBIAN_FRONTEND=noninteractive \
 	&& groupadd -g 1000 ips-hosting \
 	&& useradd -m -d /home/ips-hosting -u 1000 -g 1000 ips-hosting \
 	&& apt-get update \
