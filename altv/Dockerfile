@@ -4,7 +4,7 @@ RUN export DEBIAN_FRONTEND=noninteractive \
 	&& groupadd -g 1000 ips-hosting \
 	&& useradd -m -d /home/ips-hosting -u 1000 -g 1000 ips-hosting \
 	&& apt-get update \
-	&& apt-get install -y wget apt-transport-https curl jq libatomic1 \
+	&& apt-get install -y wget apt-transport-https curl jq libatomic1 tzdata \
 	&& curl -fsSL https://deb.nodesource.com/setup_14.x | bash - \
 	&& wget https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb \
 	&& dpkg -i packages-microsoft-prod.deb \
