@@ -65,6 +65,8 @@ The following env variables are available during `update` and `update_validate`.
 
 `BETA_PASSWORD` The password for the beta branch.
 
+`MANAGED_MODS` A list of mod ids, separated by space, which should be automatially downloaded and kept up to date.
+
 ### start
 The following env variables are available during `start`.
 
@@ -81,8 +83,6 @@ The following env variables are available during `start`.
 `RCON_ENABLED` Set to `True` to enable rcon and to `False` to disable rcon. Defaults to `True`.
 
 `MAX_PLAYERS` The maximum amount of players that can join the server. Defaults to `10`.
-
-`MANAGED_MODS` A list of mod ids, separated by space, which should be automatially downloaded and kept up to date, when doing a server update. Note that this does not load the mods. Use the `MODS` env variable for that purpose.
 
 `MODS` A comma seperated list of mod ids, that should be loaded. Note that they are not automatically installed. Use the `MANAGED_MODS` option or install the mods manually.
 
