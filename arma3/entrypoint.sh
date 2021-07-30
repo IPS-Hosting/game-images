@@ -20,13 +20,13 @@ function apply_fixes() {
 	ensure_steamcmd
 	if [ ! -f "/home/ips-hosting/.steam/sdk32/steamclient.so" ]; then
 		mkdir -vp /home/ips-hosting/.steam/sdk32
-		cp -v /ips-hosting/steamcmd/linux32/steamclient.so /home/ips-hosting/.steam/sdk32/steamclient.so
+		cp -v /tmp/steamcmd/linux32/steamclient.so /home/ips-hosting/.steam/sdk32/steamclient.so
 	fi
 }
 
 function ensure_steamcmd() {
-	mkdir -vp /ips-hosting/steamcmd
-	cd /ips-hosting/steamcmd
+	mkdir -vp /tmp/steamcmd
+	cd /tmp/steamcmd
 
 	if [ ! -f "./steamcmd.sh" ]; then
 		wget https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz
@@ -58,7 +58,7 @@ function install_mods() {
 
 		echo "Downloading mods..."
 		ensure_steamcmd
-		cd /ips-hosting/steamcmd
+		cd /tmp/steamcmd
 		# shellcheck disable=SC2046
 		./steamcmd.sh +login "$STEAM_USERNAME" "$STEAM_PASSWORD"$(printf " +workshop_download_item 107410 %s" "${MANAGED_MODS_ARRAY[@]}") validate +quit
 		echo "Finished downloading mods"
@@ -87,7 +87,7 @@ function install_mods() {
 function update_validate() {
 	check_steam_credentials
 	ensure_steamcmd
-	cd /ips-hosting/steamcmd
+	cd /tmp/steamcmd
 
 	if [ -n "${BETA_BRANCH}" ] && [ -n "${BETA_PASSWORD}" ]; then
 		./steamcmd.sh +login "$STEAM_USERNAME" "$STEAM_PASSWORD" +force_install_dir /home/ips-hosting +app_update 233780 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" validate +quit
@@ -104,7 +104,7 @@ function update_validate() {
 function update() {
 	check_steam_credentials
 	ensure_steamcmd
-	cd /ips-hosting/steamcmd
+	cd /tmp/steamcmd
 
 	if [ -n "${BETA_BRANCH}" ] && [ -n "${BETA_PASSWORD}" ]; then
 		./steamcmd.sh +login "$STEAM_USERNAME" "$STEAM_PASSWORD" +force_install_dir /home/ips-hosting +app_update 233780 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" +quit

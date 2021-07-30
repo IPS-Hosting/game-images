@@ -4,8 +4,8 @@ set -o errexit
 set -o pipefail
 
 function ensure_steamcmd() {
-	mkdir -vp /ips-hosting/steamcmd
-	cd /ips-hosting/steamcmd
+	mkdir -vp /tmp/steamcmd
+	cd /tmp/steamcmd
 
 	if [ ! -f "./steamcmd.sh" ]; then
 		wget https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz
@@ -16,7 +16,7 @@ function ensure_steamcmd() {
 
 function update_validate() {
 	ensure_steamcmd
-	cd /ips-hosting/steamcmd
+	cd /tmp/steamcmd
 
 	if [ -n "${BETA_BRANCH}" ] && [ -n "${BETA_PASSWORD}" ]; then
 		./steamcmd.sh +login anonymous +force_install_dir /home/ips-hosting +app_update 258550 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" validate +quit
@@ -33,7 +33,7 @@ function update_validate() {
 
 function update() {
 	ensure_steamcmd
-	cd /ips-hosting/steamcmd
+	cd /tmp/steamcmd
 
 	if [ -n "${BETA_BRANCH}" ] && [ -n "${BETA_PASSWORD}" ]; then
 		./steamcmd.sh +login anonymous +force_install_dir /home/ips-hosting +app_update 258550 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" +quit
