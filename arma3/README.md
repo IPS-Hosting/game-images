@@ -121,7 +121,8 @@ Note that this will only install the mods but do not load them.
 
 The following environment variables can be used to actually load the mods:
 
-`MODS` A list of mods to load, seperated by semicolons. Each entry should be a relative path to the folder containing the mod. e.g. `mods/@ace;mods/@CBA_A3`
+`MODS` A list of mods to load, seperated by semicolons. Each entry should be a relative path to the folder containing the mod. e.g. `mods/@ace;mods/@cba_a3`.
+It is important that the mods are all lower-case and spaces are replaced with underscores.
 
 `SERVER_MODS` Same like `MODS`, but used for server-side only mods. Clients will not see these mods. Only works when in the `server` mode.
 
