@@ -43,42 +43,51 @@ function install_mods() {
 		# Create mods array from space separated list of mods in env variable.
 		readarray -d ' ' -t MANAGED_MODS_ARRAY < <(printf '%s' "$MANAGED_MODS")
 
-		# Create array that contains the path of all installed mods.
-		readarray -d '' INSTALLED_MODS_ARRAY < <(find /home/ips-hosting/Steam/steamapps/workshop/content/107410 -mindepth 1 -maxdepth 1 -type d -print0)
+		# Remove old mods downloaded with Steam.
+		if [ -d "/home/ips-hosting/Steam/steamapps/workshop/content/107410" ]; then
+			# Create array that contains the path of all installed mods.
+			readarray -d '' INSTALLED_MODS_ARRAY < <(find /home/ips-hosting/Steam/steamapps/workshop/content/107410 -mindepth 1 -maxdepth 1 -type d -print0)
 
-		echo "Removing old mods..."
-		for INSTALLED_MOD_PATH in "${INSTALLED_MODS_ARRAY[@]}"; do
-			INSTALLED_MOD=$(basename "$INSTALLED_MOD_PATH")
+			echo "Removing old mods..."
+			for INSTALLED_MOD_PATH in "${INSTALLED_MODS_ARRAY[@]}"; do
+				INSTALLED_MOD=$(basename "$INSTALLED_MOD_PATH")
 
-			if [[ ! "${MANAGED_MODS_ARRAY[*]}" == *"${INSTALLED_MOD}"* ]]; then
-				rm -vrf "$INSTALLED_MOD_PATH"
-			fi
-		done
-		echo "Finished removing old logs"
+				if [[ ! "${MANAGED_MODS_ARRAY[*]}" == *"${INSTALLED_MOD}"* ]]; then
+					rm -vrf "$INSTALLED_MOD_PATH"
+				fi
+			done
+			echo "Finished removing old mods"
+		fi
 
-		echo "Downloading mods..."
-		ensure_steamcmd
-		cd /tmp/steamcmd
-		# shellcheck disable=SC2046
-		./steamcmd.sh +login "$STEAM_USERNAME" "$STEAM_PASSWORD"$(printf " +workshop_download_item 107410 %s" "${MANAGED_MODS_ARRAY[@]}") validate +quit
-		echo "Finished downloading mods"
+		# Download the newest version of all mods using SteamCMD and symlink mods afterwards.
+		if [ ${#MANAGED_MODS_ARRAY[@]} -gt 0 ]; then
+			echo "Downloading mods..."
+			ensure_steamcmd
+			cd /tmp/steamcmd
+			# shellcheck disable=SC2046
+			./steamcmd.sh +login "$STEAM_USERNAME" "$STEAM_PASSWORD"$(printf " +workshop_download_item 107410 %s" "${MANAGED_MODS_ARRAY[@]}") validate +quit
+			echo "Finished downloading mods"
 
-		echo "Symlinking all mods..."
-		mkdir -vp /home/ips-hosting/mods
-		for modid in "${MANAGED_MODS_ARRAY[@]}"; do
-			if [ ! -d "/home/ips-hosting/Steam/steamapps/workshop/content/107410/${modid}" ]; then
-				echo "Warning! '/home/ips-hosting/Steam/steamapps/workshop/content/107410/${modid}' does not exist"
-			elif [ ! -L "/home/ips-hosting/mods/${modid}" ]; then
-				ln -sv "../Steam/steamapps/workshop/content/107410/${modid}" "/home/ips-hosting/mods/${modid}"
-			else
-				echo "${modid} is already symlinked"
-			fi
-		done
-		echo "Finished symlinking all mods"
+			echo "Symlinking all mods..."
+			mkdir -vp /home/ips-hosting/mods
+			for modid in "${MANAGED_MODS_ARRAY[@]}"; do
+				if [ ! -d "/home/ips-hosting/Steam/steamapps/workshop/content/107410/${modid}" ]; then
+					echo "Warning! '/home/ips-hosting/Steam/steamapps/workshop/content/107410/${modid}' does not exist"
+				elif [ ! -L "/home/ips-hosting/mods/${modid}" ]; then
+					ln -sv "../Steam/steamapps/workshop/content/107410/${modid}" "/home/ips-hosting/mods/${modid}"
+				else
+					echo "${modid} is already symlinked"
+				fi
+			done
+			echo "Finished symlinking all mods"
+		fi
 
-		echo "Clearing broken symlinks..."
-		find /home/ips-hosting/mods -xtype l -delete -print
-		echo "Finished clearing broken symlinks"
+		# Clear broken symlinks (e.g. symlinks to old mods).
+		if [ -d "/home/ips-hosting/mods" ]; then
+			echo "Clearing broken symlinks..."
+			find /home/ips-hosting/mods -xtype l -delete -print
+			echo "Finished clearing broken symlinks"
+		fi
 
 		echo "Mod installation succeeded"
 	fi
