@@ -61,16 +61,26 @@ function install_mods() {
 
 		# Download the newest version of all mods using SteamCMD and symlink mods afterwards.
 		if [ ${#MANAGED_MODS_ARRAY[@]} -gt 0 ]; then
-			echo "Downloading mods..."
+			mkdir -vp /home/ips-hosting/mods
 			ensure_steamcmd
 			cd /tmp/steamcmd
-			# shellcheck disable=SC2046
-			./steamcmd.sh +login "$STEAM_USERNAME" "$STEAM_PASSWORD"$(printf " +workshop_download_item 107410 %s" "${MANAGED_MODS_ARRAY[@]}") validate +quit
-			echo "Finished downloading mods"
 
-			echo "Symlinking all mods..."
-			mkdir -vp /home/ips-hosting/mods
 			for modid in "${MANAGED_MODS_ARRAY[@]}"; do
+				local attempt=1
+				while true; do
+					echo "Downloading mod $modid (attempt $attempt)..."
+					./steamcmd.sh +login "$STEAM_USERNAME" "$STEAM_PASSWORD" +workshop_download_item 107410 "$modid" +quit && break
+					attempt=$((attempt+1))
+					if [ "$attempt" -le 3 ]; then
+						echo "Download of mod $modid failed, retrying in 5 seconds"
+						sleep 5
+					else
+						echo "Download failed for the 3rd time, skipping mod and continuing with next in 5 seconds"
+						sleep 5
+						break 2
+					fi
+				done
+
 				if [ ! -d "/home/ips-hosting/Steam/steamapps/workshop/content/107410/${modid}" ]; then
 					echo "Warning! '/home/ips-hosting/Steam/steamapps/workshop/content/107410/${modid}' does not exist"
 				elif [ ! -L "/home/ips-hosting/mods/${modid}" ]; then
@@ -79,7 +89,6 @@ function install_mods() {
 					echo "${modid} is already symlinked"
 				fi
 			done
-			echo "Finished symlinking all mods"
 		fi
 
 		# Clear broken symlinks (e.g. symlinks to old mods).
