@@ -65,8 +65,6 @@ The following env variables are available during `update` and `update_validate`.
 
 `BETA_PASSWORD` The password for the beta branch.
 
-`MANAGED_MODS` A list of mod ids, separated by space, which should be automatially downloaded and kept up to date.
-
 ### start
 The following env variables are available during `start`.
 
@@ -84,7 +82,7 @@ The following env variables are available during `start`.
 
 `MAX_PLAYERS` The maximum amount of players that can join the server. Defaults to `10`.
 
-`MODS` A comma seperated list of mod ids, that should be loaded. Note that they are not automatically installed. Use the `MANAGED_MODS` option or install the mods manually.
+`MODS` A comma seperated list of mod ids, that should be loaded. These are automatically managed (installed and updated) by the ARK server.
 
 `SESSION_NAME` The name of the server.
 
