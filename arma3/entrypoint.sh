@@ -68,15 +68,16 @@ function install_mods() {
 			for modid in "${MANAGED_MODS_ARRAY[@]}"; do
 				local attempt=1
 				while true; do
+					# StaemCMD will fail / timeout for big mods. The good thing is that it records what has been done,
+					# so we can just try again and it will continue where it left off.
+					# Downloading huge mods might take a few attempts.
 					echo "Downloading mod $modid (attempt $attempt)..."
 					./steamcmd.sh +login "$STEAM_USERNAME" "$STEAM_PASSWORD" +workshop_download_item 107410 "$modid" +quit && break
 					attempt=$((attempt+1))
-					if [ "$attempt" -le 3 ]; then
-						echo "Download of mod $modid failed, retrying in 5 seconds"
-						sleep 5
+					if [ "$attempt" -le 5 ]; then
+						echo "Download of mod $modid failed, retrying"
 					else
-						echo "Download failed for the 3rd time, skipping mod and continuing with next in 5 seconds"
-						sleep 5
+						echo "Download failed for the 5th time, skipping mod"
 						break 2
 					fi
 				done
