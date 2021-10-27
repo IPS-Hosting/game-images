@@ -167,7 +167,7 @@ function start() {
 
 	case "${MODE:-server}" in
 	server)
-		start_command="$start_command -ip=${HOST} -port=${GAME_PORT:-2302} -name='${PROFILE:-server}' -cfg='${BASIC_CFG:-basic.cfg}' -config='${SERVER_CFG:-server.cfg}' -bepath=/home/ips-hosting/battleye -mod='${MODS}' -serverMod='${SERVER_MODS}'"
+		start_command="$start_command -ip=${HOST} -port=${GAME_PORT:-2302} -name='${PROFILE:-server}' -cfg='${BASIC_CFG:-basic.cfg}' -config='${SERVER_CFG:-server.cfg}' -bepath=/home/ips-hosting/battleye -mod='${MODS}' -serverMod='${SERVER_MODS}' -limitFPS=${LIMIT_FPS:-50}"
 		if [ "$AUTO_INIT" == "true" ]; then
 			start_command="$start_command -autoInit"
 		fi
@@ -180,7 +180,7 @@ function start() {
 		fi
 		;;
 	client)
-		start_command="$start_command -client -connect=${GAME_SERVER_IP} -port=${GAME_SERVER_PORT:-2302} -password='${GAME_SERVER_PASSWORD}' -name='${PROFILE:-server}' -mod='${MODS}'"
+		start_command="$start_command -client -connect=${GAME_SERVER_IP} -port=${GAME_SERVER_PORT:-2302} -password='${GAME_SERVER_PASSWORD}' -name='${PROFILE:-server}' -mod='${MODS}' -limitFPS=${LIMIT_FPS:-50}"
 		;;
 	*)
 		error "unknown mode: ${MODE}"

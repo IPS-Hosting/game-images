@@ -88,6 +88,8 @@ The following env variables are always available during `start`.
 
 `PROFILE` The profile to use. Defaults to `server`.
 
+`LIMIT_FPS` The maximum amount of server FPS. Numeric value between 5 and 1000. Defaults to `50`.
+
 ### server mode
 The following env variables are available during `start` when in `server` mode.
 
