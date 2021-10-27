@@ -1,5 +1,7 @@
 # ARMA III
 
+GitHub: https://github.com/IPS-Hosting/game-images/tree/main/arma3
+
 ## Basic usage
 For advanced usage, refer to https://docs.docker.com
 ```shell

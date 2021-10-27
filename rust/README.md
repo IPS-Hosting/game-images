@@ -1,5 +1,7 @@
 # Rust
 
+GitHub: https://github.com/IPS-Hosting/game-images/tree/main/rust
+
 ## Basic usage
 For advanced usage, refer to https://docs.docker.com
 ```shell

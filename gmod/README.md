@@ -1,5 +1,7 @@
 # Garry's Mod
 
+GitHub: https://github.com/IPS-Hosting/game-images/tree/main/gmod
+
 ## Basic usage
 For advanced usage, refer to https://docs.docker.com
 ```shell

@@ -1,5 +1,7 @@
 # Counter Strike: Global Offensive
 
+GitHub: https://github.com/IPS-Hosting/game-images/tree/main/csgo
+
 ## Basic usage
 For advanced usage, refer to https://docs.docker.com
 ```shell

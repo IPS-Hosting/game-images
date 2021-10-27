@@ -1,5 +1,7 @@
 # SCP: Secret Laboratory
 
+GitHub: https://github.com/IPS-Hosting/game-images/tree/main/scpsl
+
 ## Basic usage
 For advanced usage, refer to https://docs.docker.com
 ```shell
