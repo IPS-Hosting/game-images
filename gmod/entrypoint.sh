@@ -7,7 +7,7 @@ function download_content {
 	mkdir -vp /home/ips-hosting/.ips-hosting/content/raw
 	ensure_steamcmd
 	cd /tmp/steamcmd
-	./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous/.ips-hosting/content/raw +app_update 232330 validate +quit
+	./steamcmd.sh +force_install_dir /home/ips-hosting/.ips-hosting/content/raw +login anonymous +app_update 232330 validate +quit
 
 	mkdir -vp /home/ips-hosting/.ips-hosting/content/cstrike
 
