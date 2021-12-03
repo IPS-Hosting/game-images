@@ -7,7 +7,7 @@ function download_content {
 	mkdir -vp /home/ips-hosting/.ips-hosting/content/raw
 	ensure_steamcmd
 	cd /tmp/steamcmd
-	./steamcmd.sh +login anonymous +force_install_dir /home/ips-hosting/.ips-hosting/content/raw +app_update 232330 validate +quit
+	./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous/.ips-hosting/content/raw +app_update 232330 validate +quit
 
 	mkdir -vp /home/ips-hosting/.ips-hosting/content/cstrike
 
@@ -57,11 +57,11 @@ function update_validate() {
 	cd /tmp/steamcmd
 
 	if [ -n "${BETA_BRANCH}" ] && [ -n "${BETA_PASSWORD}" ]; then
-		./steamcmd.sh +login anonymous +force_install_dir /home/ips-hosting +app_update 4020 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" validate +quit
+		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 4020 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" validate +quit
 	elif [ -n "$BETA_BRANCH" ]; then
-		./steamcmd.sh +login anonymous +force_install_dir /home/ips-hosting +app_update 4020 -beta "${BETA_BRANCH}" validate +quit
+		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 4020 -beta "${BETA_BRANCH}" validate +quit
 	else
-		./steamcmd.sh +login anonymous +force_install_dir /home/ips-hosting +app_update 4020 validate +quit
+		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 4020 validate +quit
 	fi
 
 	apply_fixes
@@ -74,11 +74,11 @@ function update() {
 	cd /tmp/steamcmd
 
 	if [ -n "${BETA_BRANCH}" ] && [ -n "${BETA_PASSWORD}" ]; then
-		./steamcmd.sh +login anonymous +force_install_dir /home/ips-hosting +app_update 4020 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" +quit
+		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 4020 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" +quit
 	elif [ -n "$BETA_BRANCH" ]; then
-		./steamcmd.sh +login anonymous +force_install_dir /home/ips-hosting +app_update 4020 -beta "${BETA_BRANCH}" +quit
+		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 4020 -beta "${BETA_BRANCH}" +quit
 	else
-		./steamcmd.sh +login anonymous +force_install_dir /home/ips-hosting +app_update 4020 +quit
+		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 4020 +quit
 	fi
 
 	apply_fixes

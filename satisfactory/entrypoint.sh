@@ -32,11 +32,11 @@ function update_validate() {
 	cd /tmp/steamcmd
 
 	if [ -n "${BETA_BRANCH}" ] && [ -n "${BETA_PASSWORD}" ]; then
-		./steamcmd.sh +login anonymous +force_install_dir /home/ips-hosting +app_update 1690800 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" validate +quit
+		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 1690800 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" validate +quit
 	elif [ -n "$BETA_BRANCH" ]; then
-		./steamcmd.sh +login anonymous +force_install_dir /home/ips-hosting +app_update 1690800 -beta "${BETA_BRANCH}" validate +quit
+		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 1690800 -beta "${BETA_BRANCH}" validate +quit
 	else
-		./steamcmd.sh +login anonymous +force_install_dir /home/ips-hosting +app_update 1690800 validate +quit
+		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 1690800 validate +quit
 	fi
 
 	apply_fixes
@@ -47,11 +47,11 @@ function update() {
 	cd /tmp/steamcmd
 
 	if [ -n "${BETA_BRANCH}" ] && [ -n "${BETA_PASSWORD}" ]; then
-		./steamcmd.sh +login anonymous +force_install_dir /home/ips-hosting +app_update 1690800 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" +quit
+		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 1690800 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" +quit
 	elif [ -n "$BETA_BRANCH" ]; then
-		./steamcmd.sh +login anonymous +force_install_dir /home/ips-hosting +app_update 1690800 -beta "${BETA_BRANCH}" +quit
+		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 1690800 -beta "${BETA_BRANCH}" +quit
 	else
-		./steamcmd.sh +login anonymous +force_install_dir /home/ips-hosting +app_update 1690800 +quit
+		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 1690800 +quit
 	fi
 
 	apply_fixes
