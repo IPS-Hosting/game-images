@@ -42,7 +42,7 @@ function Get-LatestRpt()
     return $latestRpt
 }
 
-function Compare-SteamCredentials {
+function Check-SteamCredentials {
     if (($null -eq $env:STEAM_USERNAME) -or ($null -eq $env:STEAM_PASSWORD)) {
         error "Missing steam login information"
 
@@ -126,7 +126,7 @@ function Install-Mods {
 }
 
 function Invoke-Update {
-    Compare-SteamCredentials
+    Check-SteamCredentials
     Ensure-Installation
     if (($null -ne $env:BETA_BRANCH) -and ($null -ne $env:BETA_PASSWORD)) {
         Start-Process -FilePath "C:/arma3server/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 -beta $env:BETA_BRANCH -betapassword $env:BETA_PASSWORD +quit" -Wait -NoNewWindow
@@ -139,7 +139,7 @@ function Invoke-Update {
 }
 
 function Invoke-UpdateValidate {
-    Compare-SteamCredentials
+    Check-SteamCredentials
     Ensure-Installation
     if (($null -ne $env:BETA_BRANCH) -and ($null -ne $env:BETA_PASSWORD)) {
         Start-Process -FilePath "C:/arma3server/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 -beta $env:BETA_BRANCH -betapassword $env:BETA_PASSWORD validate +quit" -Wait -NoNewWindow

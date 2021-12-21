@@ -1,11 +1,9 @@
 FROM mcr.microsoft.com/windows/servercore:ltsc2022
 
-MAINTAINER mattis.kraemer (at) einfach-gaming.de
-
 RUN NET USER /add arma3
 RUN NET LOCALGROUP "Administrators" "arma3" /add
 
-user arma3
+USER arma3
 
 COPY "./entrypoint.ps1" "C:/entrypoint.ps1"
  
@@ -15,7 +13,7 @@ COPY "./XAPOFX1_5.dll" "C:/temp/XAPOFX1_5.dll"
 COPY "./vcredist_x64.exe" "C:/temp/vcredist_x64.exe"
 
 WORKDIR "C:/arma3server"
-Volume "C:/arma3server"
+VOLUME "C:/arma3server"
 
 EXPOSE 2302/udp
 EXPOSE 2303/udp
