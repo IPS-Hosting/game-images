@@ -66,7 +66,7 @@ function update() {
 }
 
 function start() {
-	local start_command="./srcds_run -game csgo -ip ${HOST:-0.0.0.0} -port ${GAME_PORT:-27015} -clientport ${CLIENT_PORT:-27005} +tv_port ${TV_PORT:-27020} -strictportbind -console -usercon -maxplayers_override ${MAX_PLAYERS:-10} -tickrate ${TICKRATE:-66} +game_type ${GAME_TYPE:-0} +game_mode ${GAME_MODE:-0} +mapgroup ${MAP:-mg_active} +map ${MAP:-de_mirage} +workshop_start_map ${WORKSHOP_START_MAP} +host_workshop_collection ${HOST_WORKSHOP_COLLECTION} -authkey ${AUTHKEY} +sv_setsteamaccount=$GSLT -nobreakpad"
+	local start_command="./srcds_run -game csgo -ip ${HOST:-0.0.0.0} -port ${GAME_PORT:-27015} -clientport ${CLIENT_PORT:-27005} +tv_port ${TV_PORT:-27020} -strictportbind -console -usercon -maxplayers_override ${MAX_PLAYERS:-10} -tickrate ${TICKRATE:-66} +game_type ${GAME_TYPE:-0} +game_mode ${GAME_MODE:-0} +mapgroup ${MAP:-mg_active} +map ${MAP:-de_mirage} +workshop_start_map ${WORKSHOP_START_MAP} +host_workshop_collection ${HOST_WORKSHOP_COLLECTION} -authkey ${AUTHKEY} +sv_setsteamaccount ${GSLT} -nobreakpad"
 	if [ "$INSECURE" == "true" ]; then
 		start_command="$start_command -insecure"
 	fi
