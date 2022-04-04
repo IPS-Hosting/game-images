@@ -12,6 +12,9 @@ function ensure_steamcmd() {
 		tar -xvzf steamcmd_linux.tar.gz
 		rm steamcmd_linux.tar.gz
 	fi
+
+	# Workaround for https://www.reddit.com/r/SteamCMD/comments/nv9oey/error_failed_to_install_app_xxx_disk_write_failure/
+	mkdir -vp /home/ips-hosting/steamapps
 }
 
 function apply_fixes() {

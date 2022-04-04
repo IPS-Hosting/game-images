@@ -23,6 +23,9 @@ function ensure_steamcmd() {
 		tar -xvzf steamcmd_linux.tar.gz
 		rm steamcmd_linux.tar.gz
 	fi
+
+	# Workaround for https://www.reddit.com/r/SteamCMD/comments/nv9oey/error_failed_to_install_app_xxx_disk_write_failure/
+	mkdir -vp /home/ips-hosting/steamapps
 }
 
 function ensure_steamcmd_ark() {
@@ -38,6 +41,7 @@ function ensure_steamcmd_ark() {
 
 function update_validate() {
 	ensure_steamcmd
+	cd /tmp/steamcmd
 
 	if [ -n "${BETA_BRANCH}" ] && [ -n "${BETA_PASSWORD}" ]; then
 		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 376030 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" validate +quit
@@ -52,6 +56,7 @@ function update_validate() {
 
 function update() {
 	ensure_steamcmd
+	cd /tmp/steamcmd
 
 	if [ -n "${BETA_BRANCH}" ] && [ -n "${BETA_PASSWORD}" ]; then
 		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 376030 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" +quit
