@@ -167,7 +167,7 @@ function start() {
 
 	case "${MODE:-server}" in
 	server)
-		start_command="$start_command -ip=${HOST} -port=${GAME_PORT:-2302} -name='${PROFILE:-server}' -cfg='${BASIC_CFG:-basic.cfg}' -config='${SERVER_CFG:-server.cfg}' -bepath=/home/ips-hosting/battleye -mod='${MODS}' -serverMod='${SERVER_MODS}' -limitFPS=${LIMIT_FPS:-50}"
+		start_command="$start_command -ip=${HOST:-0.0.0.0} -port=${GAME_PORT:-2302} -name='${PROFILE:-server}' -cfg='${BASIC_CFG:-basic.cfg}' -config='${SERVER_CFG:-server.cfg}' -bepath=/home/ips-hosting/battleye -mod='${MODS}' -serverMod='${SERVER_MODS}' -limitFPS=${LIMIT_FPS:-50}"
 		if [ "$AUTO_INIT" == "true" ]; then
 			start_command="$start_command -autoInit"
 		fi
