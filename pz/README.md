@@ -50,6 +50,8 @@ To persist the game server data on the host filesystem, use `-v /absolute-path/o
 * 8766/udp (game)
 * 16261/tcp (query)
 
+You can change the ports with the `GAME_PORT` and `QUERY_PORT` environment variables.
+
 ## Env variables
 Env variables can be configured with the `-e "KEY=VAL"` flag when creating the container. The flag can be used multiple times.
 To change the env variables, you need to re-create the container.
@@ -60,3 +62,30 @@ The following env variables are available during `update` and `update_validate`.
 `BETA_BRANCH` Used to download a different branch of the server.
 
 `BETA_PASSWORD` The password for the beta branch.
+
+### start
+The following env variables are always available during `start`.
+
+`MEMORY` The maximum amount of memory that is allocated to the JVM heap. Defaults to `2048m` (2GB).
+
+`HOST` The host address, the server listens on. Defaults to `0.0.0.0`
+
+`GAME_PORT` The game port to use. Defaults to `8766`. Remember to also update the container port bindings when changing this variable.
+
+`QUERY_PORT` The query port to use. Defaults to `16261`. Remember to also update the container port bindings when changing this variable.
+
+`SERVER_NAME` The internal name of the server. The server database, saves and configuration files use this name, so changing this will result in a new world being created, and you need to reconfigure your server in the new configuration files. Defaults to `servertest`.
+
+`ADMIN_USERNAME` The username of the admin user. Defaults to `admin`.
+
+`ADMIN_PASSWORD` The password of the admin user. Defaults to `#Change_Me!`.
+
+`NO_STEAM` Set to `true` to disable Steam integration.
+
+`STEAM_VAC` Whether Valve Anti Cheat is enabled. Valid values are `true` or `false`. Defaults to `true`.
+
+`DEBUG` Set to `true` to enabled debug mode.
+
+## Additional information
+Additional server configuration can be done in the `Zomboid/Server/{SERVER_NAME}*.ini` files after the server is installed.
+See https://pzwiki.net/wiki/Dedicated_Server for more information, including a list of server commands.
