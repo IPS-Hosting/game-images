@@ -48,7 +48,7 @@ To persist the game server data on the host filesystem, use `-v /absolute-path/o
 
 ## Ports
 * 8766/udp (game)
-* 16261/tcp (query)
+* 16261/udp (query)
 
 You can change the ports with the `GAME_PORT` and `QUERY_PORT` environment variables.
 
