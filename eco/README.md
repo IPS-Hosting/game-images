@@ -48,7 +48,9 @@ To persist the game server data on the host filesystem, use `-v /absolute-path/o
 
 ## Ports
 * 3000/udp (game)
-* 3001/tcp (client)
+* 3001/tcp (web)
+
+To use another port (e.g. to run multiple Eco servers on the same machine), change the docker port mapping when creating the container.
 
 ## Env variables
 Env variables can be configured with the `-e "KEY=VAL"` flag when creating the container. The flag can be used multiple times.
