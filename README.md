@@ -6,8 +6,11 @@ Game server docker images for the following games:
 * [ARK: Survival Evolved](ark/README.md)
 * [Arma III](arma3/README.md)
 * [Counter Strike: Global Offensive](csgo/README.md)
+* [Eco](eco/README.md)
 * [Garry's Mod](gmod/README.md)
+* [Project: Zomboid](pz/README.md)
 * [Rust](rust/README.md)
+* [Satisfactory](satisfactory/README.md)
 * [SCP: Secret Laboratory](scpsl/README.md)
 * [Valheim](valheim/README.md)
 
