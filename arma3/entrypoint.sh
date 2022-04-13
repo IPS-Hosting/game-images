@@ -178,7 +178,7 @@ function start() {
 			start_command="$start_command -loadMissionToMemory"
 		fi
 
-		if [ "$EXTRACT_MOD_KEYS" = true ]; then
+		if [ "$EXTRACT_MOD_KEYS" == "true" ]; then
 			extract_mod_keys
 		fi
 		;;
