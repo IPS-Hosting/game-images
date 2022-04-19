@@ -93,7 +93,7 @@ function start() {
 	if [ "$SERVER_GAME_LOG_INCLUDE_TRIBE_LOGS" == "true" ]; then
 		start_command="$start_command -servergamelogincludetribelogs"
 	fi
-	if [ "$FORCE_ALLOW_CAVE_FYLERS" == "true" ]; then
+	if [ "$FORCE_ALLOW_CAVE_FLYERS" == "true" ]; then
 		start_command="$start_command -ForceAllowCaveFlyers"
 	fi
 
