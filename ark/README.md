@@ -1,4 +1,6 @@
 # ARK: Survival Evolved
+Dedicated server for ARK: Survival Evolved. Allows connection from Steam players and Epic Games players (if `PUBLIC_IP` is set).
+Xbox, PS4, and PC players that play the game using Microsoft store (Xbox game pass), are not able to join the server.
 
 GitHub: https://github.com/IPS-Hosting/game-images/tree/main/ark
 
@@ -73,6 +75,8 @@ The following env variables are available during `start`.
 `MAP` The map the server runs on. Defaults to `TheIsland`.
 
 `HOST` The host the server listens on. Defaults to `0.0.0.0`
+
+`PUBLIC_IP` The public IP of the server (optional). Can be set to allow connections from Epic Games players (crossplay).
 
 `GAME_PORT` The udp game port the server listens on. Defaults to `7777`. Remember to also update the container port bindings when changing this variable.
 

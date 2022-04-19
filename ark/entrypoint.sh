@@ -86,7 +86,10 @@ function start() {
 	if [ -n "$SERVER_ADMIN_PASSWORD" ]; then
 		start_command="$start_command?ServerAdminPasword=$SERVER_ADMIN_PASSWORD"
 	fi
-	start_command="$start_command -server -crossplay -PublicIPForEpic=$HOST -automanagedmods"
+	start_command="$start_command -server -automanagedmods"
+	if [ -n "$PUBLIC_IP" ]; then
+		start_command="$start_command -crossplay -PublicIPForEpic=${PUBLIC_IP}"
+	fi
 	if [ "$SERVER_GAME_LOG" == "true" ]; then
 		start_command="$start_command -servergamelog"
 	fi
