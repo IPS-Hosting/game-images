@@ -58,10 +58,10 @@ function start() {
 		start_command="$start_command -queryPort $QUERY_PORT"
 	fi
 	if [ -n "$SAVE_NAME" ]; then
-		start_command="$start_command -saveName $SAVE_NAME"
+		start_command="$start_command -saveName \"$SAVE_NAME\""
 	fi
 	if [ -n "$SERVER_NAME" ]; then
-		start_command="$start_command -serverName $SERVER_NAME"
+		start_command="$start_command -serverName \"$SERVER_NAME\""
 	fi
 	if [ -n "$MAX_CONNECTED_USERS" ]; then
 		start_command="$start_command -maxConnectedUsers $MAX_CONNECTED_USERS"
