@@ -42,7 +42,7 @@ jobs:
             ipshosting/game-${{ env.GAME }}:v${{ env.VERSION }}
 
       - name: Update DockerHub description
-        uses: peter-evans/dockerhub-description@v2
+        uses: peter-evans/dockerhub-description@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_PASSWORD }}
