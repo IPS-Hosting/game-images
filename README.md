@@ -13,6 +13,7 @@ Game server docker images for the following games:
 * [Satisfactory](satisfactory/README.md)
 * [SCP: Secret Laboratory](scpsl/README.md)
 * [Valheim](valheim/README.md)
+* [V Rising](vrising/README.md)
 
 See the README of individual games for more information.
 
