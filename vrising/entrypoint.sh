@@ -45,7 +45,7 @@ function update() {
 
 
 function start() {
-	local start_command="xvfb-run wine VRisingServer.exe -persistentDataPath ./data"
+	local start_command="xvfb-run -a wine VRisingServer.exe -persistentDataPath ./data"
 
 	# Allow to overwrite ServerHostSettings.json via env variables
 	if [ -n "$HOST" ]; then
