@@ -1,11 +1,14 @@
 # ARK: Survival Evolved
+
 Dedicated server for ARK: Survival Evolved. Allows connection from Steam players and Epic Games players (if `PUBLIC_IP` is set).
 Xbox, PS4, and PC players that play the game using Microsoft store (Xbox game pass), are not able to join the server.
 
 GitHub: https://github.com/IPS-Hosting/game-images/tree/main/ark
 
 ## Basic usage
+
 For advanced usage, refer to https://docs.docker.com
+
 ```shell
 # Create the docker container
 docker create -it --restart always \
@@ -15,7 +18,7 @@ docker create -it --restart always \
   -p 7777:7777/udp \
   -p 7778:7778/udp \
   ipshosting/game-ark:v2
-  
+
 # Start the server
 docker start ark-server
 
@@ -36,13 +39,16 @@ docker rm ark-server
 ```
 
 ## Commands
+
 By default, when starting the container, it will be installed and updated, and the ark Server is started afterwards.
 You can create a container with a different command to change this behaviour:
-* **update** Only install the latest version of the server. It won't be started and the container will exit after the ark server is installed and updated.
-* **update_validate** Same like update but will also validate the files. Recommended for the initial installation of the server.
-* **start** Only start the ark server without installing or updating.
+
+- **update** Only install the latest version of the server. It won't be started and the container will exit after the ark server is installed and updated.
+- **update_validate** Same like update but will also validate the files. Recommended for the initial installation of the server.
+- **start** Only start the ark server without installing or updating.
 
 ## Data persistence
+
 Game server data is kept in `/home/ips-hosting`.
 By default a volume will be auto-created which will persist the game server data across server restarts.
 When you re-create the container, a new volume is created and you can't access the old data unless you manually mount the old volume.
@@ -51,18 +57,21 @@ See https://docs.docker.com/storage/volumes/ for more information.
 To persist the game server data on the host filesystem, use `-v /absolute-path/on/host:/home/ips-hosting` when creating the docker container.
 
 ## Ports
-* 27020/tcp (rcon)
-* 27015/udp (query)
-* 7777/udp (game)
-* 7778/udp (rawSocket) - always game+1
+
+- 27020/tcp (rcon)
+- 27015/udp (query)
+- 7777/udp (game)
+- 7778/udp (rawSocket) - always game+1
 
 You can change the port with the `GAME_PORT`, `QUERY_PORT` and `RCON_PORT` environment variables.
 
 ## Env variables
+
 Env variables can be configured with the `-e "KEY=VAL"` flag when creating the container. The flag can be used multiple times.
 To change the env variables, you need to re-create the container.
 
 ### update and update_validate
+
 The following env variables are available during `update` and `update_validate`.
 
 `BETA_BRANCH` Used to download a different branch of the server.
@@ -70,6 +79,7 @@ The following env variables are available during `update` and `update_validate`.
 `BETA_PASSWORD` The password for the beta branch.
 
 ### start
+
 The following env variables are available during `start`.
 
 `MAP` The map the server runs on. Defaults to `TheIsland`.
