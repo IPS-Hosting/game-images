@@ -99,6 +99,9 @@ function start() {
 	if [ "$FORCE_ALLOW_CAVE_FLYERS" == "true" ]; then
 		start_command="$start_command -ForceAllowCaveFlyers"
 	fi
+	if [ "$NO_BATTLEYE" == "true" ]; then
+		start_command="$start_command -NoBattlEye"
+	fi
 
 	cd /home/ips-hosting/ShooterGame/Binaries/Linux
 	echo "$start_command"

@@ -103,3 +103,5 @@ The following env variables are available during `start`.
 `SERVER_GAME_LOG_INCLUDE_TRIBE_LOGS` Set to `true` to include tribe logs in the game log.
 
 `FORCE_ALLOW_CAVE_FLYERS` Set to `true` to allow flyer dinos in caves.
+
+`NO_BATTLEYE` Set to `true` to disable BattlEye anti cheat.
