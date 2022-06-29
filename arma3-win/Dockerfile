@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/windows/servercore:ltsc2022
+FROM mcr.microsoft.com/windows/server:ltsc2022
 
 ENV HOST=0.0.0.0
 ENV GAME_PORT=2302

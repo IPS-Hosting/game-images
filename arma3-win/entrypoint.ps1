@@ -155,6 +155,10 @@ function Invoke-Start {
         }
 
         default {
+            if (!(Test-Path -Path "C:/arma3/arma3server/logfiles" -PathType container)) {
+                New-Item -Path "C:/arma3/arma3server" -Name "logfiles" -ItemType "directory"
+            }
+
             $Start_Options = "-ip=$env:HOST -port=$env:GAME_PORT -name=$env:PROFILE -cfg=$env:BASIC_CFG -config=$env:SERVER_CFG -mod=$env:MODS -serverMod=$env:SERVER_MODS -limitFPS=$env:LIMIT_FPS -profiles=logfiles"
 
             if ($env:AUTO_INIT -eq $true) {
@@ -179,7 +183,7 @@ function Invoke-Start {
         Start-Process -FilePath "C:/arma3/arma3server/arma3server_x64.exe" -ArgumentList $Start_Options
     }
     
-    Start-Sleep -s 1
+    Start-Sleep -s 3
     $rpt = Get-LatestRpt
     Get-Content $rpt.FullName -Wait
 }
