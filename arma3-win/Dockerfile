@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/windows/server:ltsc2022
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
 
 ENV HOST=0.0.0.0
 ENV GAME_PORT=2302
@@ -9,12 +9,14 @@ ENV LIMIT_FPS=50
 
 COPY "./entrypoint.ps1" "C:/arma3/entrypoint.ps1"
  
-COPY "./X3DAudio1_7.dll" "C:/arma3/temp/X3DAudio1_7.dll"
-COPY "./XAPOFX1_5.dll" "C:/arma3/temp/XAPOFX1_5.dll"
+#Install Chocolatey
+RUN powershell.exe -Command "Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))"
 
-COPY "./vcredist_x64.exe" "C:/arma3/temp/vcredist_x64.exe"
+RUN choco install dotnet4.5.2 -y
 
-RUN powershell.exe -Command Start-Process "C:/arma3/temp/vcredist_x64.exe" -ArgumentList '/quiet' -Wait
+RUN choco install vcredist2010 -y
+
+RUN choco install vcredist2013 -y
 
 WORKDIR "C:/arma3/arma3server"
 VOLUME "C:/arma3/arma3server"

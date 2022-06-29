@@ -16,15 +16,6 @@ function Ensure-Installation {
 
         Write-Output "SteamCMD Setup complete"
     }
-
-    if (!(Test-Path -Path "C:/arma3/arma3server/X3DAudio1_7.dll" -PathType leaf)) {
-        Copy-Item "C:/arma3/temp/X3DAudio1_7.dll" "C:/arma3/arma3server/X3DAudio1_7.dll"
-        Write-Output "Copied 3DAudio"
-    }
-    if (!(Test-Path -Path "C:/arma3/arma3server/XAPOFX1_5.dll" -PathType leaf)) {
-        Copy-Item "C:/arma3/temp/XAPOFX1_5.dll" "C:/arma3/arma3server/XAPOFX1_5.dll"
-        Write-Output "Copied APOFX"
-    }
 }
 
 function error($1) {
