@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/windows/servercore:ltsc2022
+FROM mcr.microsoft.com/windows/server:ltsc2022
 
 ENV HOST=0.0.0.0
 ENV GAME_PORT=2302
@@ -17,6 +17,8 @@ RUN choco install dotnet4.5.2 -y
 RUN choco install vcredist2010 -y
 
 RUN choco install vcredist2013 -y
+
+RUN choco install directx -y
 
 WORKDIR "C:/arma3/arma3server"
 VOLUME "C:/arma3/arma3server"
