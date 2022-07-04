@@ -10,12 +10,12 @@ You can create a container with a different command to change this behaviour:
 * **start** Only start the arma3 server without installing or updating.
 
 ## Data persistence
-Game server data is kept in `C:/Users/ContainerUser/Desktop/arma3server`.
-By default a volume will be auto-created which will persist the game server data across server restarts.
+Game server data is kept in `C:/Users/ContainerUser/arma3server`. In addition to that, the SteamCMD and its data is kept in `C:/Users/ContainerUser/steamcmd`.
+By default 2 volumes will be auto-created which will persist the data across server restarts.
 When you re-create the container, a new volume is created and you can't access the old data unless you manually mount the old volume.
 See https://docs.docker.com/storage/volumes/ for more information.
 
-To persist the game server data on the host filesystem, use `-v /absolute-path/on/host:C:/Users/ContainerUser/Desktop/arma3server` when creating the docker container.
+To persist the game server data on the host filesystem, use `-v C:/path/on/host:C:/Users/ContainerUser/arma3server` when creating the docker container.
 
 ## Ports
 * 2302/udp (game)
@@ -26,11 +26,10 @@ To persist the game server data on the host filesystem, use `-v /absolute-path/o
 
 You can change the ports with the `GAME_PORT` environment variable.
 
-## A note about steam credentials
-To be able to download the ARMA III dedicated server.
-These credentials need to be specified during `update` and `update_validate` via env variables (see below).
+## A note about Steam credentials
+To download workshop addons via SteamCMD, you need to be logged into an account that owns ARMA III.
+These credentials need to be specified during `update` and `update_validate` via env variables when you use the managed mods feature of this image (see below).
 The account must not have Steam guard enabled. Because of that it is not recommended to use your personal Steam account.
-To download mods using steamcmd the account is also required to own a copy of ARMA III.
 
 ## Env variables
 Env variables can be configured with the `-e "KEY=VAL"` flag when creating the container. The flag can be used multiple times.
@@ -43,9 +42,9 @@ The following env variables are available during `update` and `update_validate`.
 
 `BETA_PASSWORD` The password for the beta branch.
 
-`STEAM_USERNAME` The username of a steam account owning ARMA III.
+`STEAM_USERNAME` The username of a steam account owning ARMA III. Required for the managed mods feature.
 
-`STEAM_PASSWORD` The password of a steam account owning ARMA III.
+`STEAM_PASSWORD` The password of a steam account owning ARMA III. Required for the managed mods feature.
 
 
 ### start
@@ -60,7 +59,7 @@ The following env variables are always available during `start`.
 `LIMIT_FPS` The maximum amount of server FPS. Numeric value between 5 and 1000.
 
 ### server mode
-The following env variables are available during `start` when in `server` mode.
+The following env variables are available during `start` when in `server` mode (the default mode).
 
 `HOST` The host address, the server should listen on.
 
@@ -86,13 +85,12 @@ The following env variables are available during `start` when in `client` mode.
 ## Mods
 All mods should be installed in the subdirectory `mods`.
 
-Mods can be automatically downloaded and kept up to date from the Steam workshop. Therefore you need to provide a space seperated list of steam workshop ids in the `MANAGED_MODS` env variable during `update` or `update_validate`. This will symlink the mods to the `mods` subdirectory.
+Mods can be automatically downloaded and kept up to date from the Steam workshop. Therefore you need to provide a space seperated list of steam workshop ids in the `MANAGED_MODS` env variable during `update` or `update_validate`. This will download the mods to the `mods` subdirectory.
 Note that this will only install the mods but do not load them.
 
 The following environment variables can be used to actually load the mods:
 
-`MODS` A list of mods to load, seperated by semicolons. Each entry should be a relative path to the folder containing the mod. e.g. `mods/@ace;mods/@cba_a3`.
-It is important that the mods are all lower-case and spaces are replaced with underscores.
+`MODS` A list of mods to load, seperated by semicolons. Each entry should be a relative path to the folder containing the mod. e.g. `mods/@ace;mods/@CBA_A3`.
 
 `SERVER_MODS` Same like `MODS`, but used for server-side only mods. Clients will not see these mods. Only works when in the `server` mode.
 
