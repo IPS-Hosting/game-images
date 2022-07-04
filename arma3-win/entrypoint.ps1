@@ -52,7 +52,7 @@ function Install-Mods {
         if (!(Test-Path -Path "C:/Users/ContainerUser/Desktop/arma3/arma3server/mods" -PathType container)) {
             New-Item -Path "C:/Users/ContainerUser/Desktop/arma3/arma3server" -Name "mods" -ItemType "directory"
 
-            New-Item -ItemType "SymbolicLink" -Path "C:/Users/ContainerUser/Desktop/arma3/steamcmd/steamapps/workshop/content/107410" -Target "C:/Users/ContainerUser/Desktop/arma3/arma3server/mods"
+            New-Item -ItemType "Junction" -Path "C:/Users/ContainerUser/Desktop/arma3/steamcmd/steamapps/workshop/content/107410" -Target "C:/Users/ContainerUser/Desktop/arma3/arma3server/mods"
         }
 
         $MANAGED_MODS_ARRAY = $env:MANAGED_MODS.split(" ")

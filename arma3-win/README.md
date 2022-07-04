@@ -10,12 +10,12 @@ You can create a container with a different command to change this behaviour:
 * **start** Only start the arma3 server without installing or updating.
 
 ## Data persistence
-Game server data is kept in `C:/arma3server`.
+Game server data is kept in `C:/Users/ContainerUser/Desktop/arma3server`.
 By default a volume will be auto-created which will persist the game server data across server restarts.
 When you re-create the container, a new volume is created and you can't access the old data unless you manually mount the old volume.
 See https://docs.docker.com/storage/volumes/ for more information.
 
-To persist the game server data on the host filesystem, use `-v /absolute-path/on/host:C:/arma3server` when creating the docker container.
+To persist the game server data on the host filesystem, use `-v /absolute-path/on/host:C:/Users/ContainerUser/Desktop/arma3server` when creating the docker container.
 
 ## Ports
 * 2302/udp (game)
