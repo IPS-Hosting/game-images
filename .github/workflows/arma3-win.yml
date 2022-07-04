@@ -22,7 +22,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-        
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
       - name: Build and push
         uses: mr-smithers-excellent/docker-build-push@v5
         with:
@@ -31,8 +34,8 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_PASSWORD }}
           tags: v${{ env.VERSION }}, latest
+          dockerfile: ./${{ env.GAME }}/Dockerfile
           directory: ./${{ env.GAME }}
-          enableBuildKit: true
 
       - name: Update DockerHub description
         uses: peter-evans/dockerhub-description@v2
