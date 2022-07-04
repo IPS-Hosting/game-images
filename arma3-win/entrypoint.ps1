@@ -141,7 +141,7 @@ function Invoke-Start {
 
     switch ($env:MODE) {
         client {
-            $Start_Options = "-client -connect=$env:GAME_SERVER_IP -port=$env:GAME_SERVER_PORT -password='$env:GAME_SERVER_PASSWORD' -name='$env:PROFILE' -mod='$env:MODS' -limitFPS='$env:LIMIT_FPS' -profiles=logfiles"
+            $Start_Options = "-client -connect=$env:GAME_SERVER_IP -port=$env:GAME_SERVER_PORT -password=$env:GAME_SERVER_PASSWORD -name=$env:PROFILE -mod=$env:MODS -limitFPS=$env:LIMIT_FPS -profiles=logfiles"
         }
 
         default {
@@ -149,7 +149,7 @@ function Invoke-Start {
                 New-Item -Path "C:/Users/ContainerUser/arma3server" -Name "logfiles" -ItemType "directory"
             }
 
-            $Start_Options = "-ip=$env:HOST -port=$env:GAME_PORT -name='$env:PROFILE' -cfg='$env:BASIC_CFG' -config='$env:SERVER_CFG' -mod='$env:MODS' -serverMod='$env:SERVER_MODS' -limitFPS='$env:LIMIT_FPS' -profiles=logfiles"
+            $Start_Options = "-ip=$env:HOST -port=$env:GAME_PORT -name=$env:PROFILE -cfg=$env:BASIC_CFG -config=$env:SERVER_CFG -mod=$env:MODS -serverMod=$env:SERVER_MODS -limitFPS=$env:LIMIT_FPS -profiles=logfiles"
 
             if ($env:AUTO_INIT -eq $true) {
                 $Start_Options = "$Start_Options -autoInit"
