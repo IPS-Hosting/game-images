@@ -2,6 +2,40 @@
 
 GitHub: https://github.com/IPS-Hosting/game-images/tree/main/arma3-win
 
+## Basic usage
+For advanced usage, refer to https://docs.docker.com
+```shell
+# Create the docker container
+docker create -it --restart always \
+  --name arma3-server \
+  -p 2302:2302/udp \
+  -p 2303:2303/udp \
+  -p 2304:2304/udp \
+  -p 2305:2305/udp \
+  -p 2306:2306/udp \
+  -e "STEAM_USERNAME=your_steam_username" \
+  -e "STEAM_PASSWORD=your_steam_password" \
+  ipshosting/game-arma3-win:v1
+
+# Start the server
+docker start arma3-server
+
+# Stop the server
+docker stop arma3-server
+
+# Restart the server
+docker restart arma3-server
+
+# View server logs
+docker logs arma3-server
+
+# Attach to server console to see output in realtime (de-attach by pressing CTRL-P + CTRL-Q).
+docker attach arma3-server
+
+# Remove the container
+docker rm arma3-server
+```
+
 ## Commands
 By default, when starting the container, it will be installed and updated, and the arma3 Server is started afterwards.
 You can create a container with a different command to change this behaviour:
