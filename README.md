@@ -4,7 +4,8 @@ Game server docker images for the following games:
 
 * [alt:V](altv/README.md)
 * [ARK: Survival Evolved](ark/README.md)
-* [Arma III](arma3/README.md)
+* [ARMA III](arma3/README.md)
+* [ARMA III for Windows Containers](arma3-win/README.md)
 * [Counter Strike: Global Offensive](csgo/README.md)
 * [Garry's Mod](gmod/README.md)
 * [Rust](rust/README.md)
