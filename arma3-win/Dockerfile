@@ -9,8 +9,6 @@ ENV PROFILE=server
 ENV BASIC_CFG=basic.cfg
 ENV SERVER_CFG=server.cfg
 ENV LIMIT_FPS=50
-
-COPY "./entrypoint.ps1" "C:/Users/ContainerUser/entrypoint.ps1"
  
 # Install Chocolatey
 RUN powershell.exe -Command "Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))"
@@ -22,13 +20,15 @@ RUN choco install vcredist2010 -y
 RUN choco install vcredist2013 -y
 RUN choco install directx -y
 
+VOLUME "C:/Users/ContainerUser/arma3server"
+VOLUME "C:/Users/ContainerUser/steamcmd"
+
 # Run as unprivileged container user
 # https://docs.microsoft.com/en-us/virtualization/windowscontainers/manage-containers/container-security#when-to-use-containeradmin-and-containeruser-user-accounts
 USER ContainerUser
-
 WORKDIR "C:/Users/ContainerUser/arma3server"
-VOLUME "C:/Users/ContainerUser/arma3server"
-VOLUME "C:/Users/ContainerUser/steamcmd"
+
+COPY "./entrypoint.ps1" "C:/Users/ContainerUser/entrypoint.ps1"
 
 EXPOSE 2302/udp
 EXPOSE 2303/udp
