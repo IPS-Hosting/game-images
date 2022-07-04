@@ -1,17 +1,17 @@
 function Ensure-Installation {
-    if (!(Test-Path -Path "C:/Users/ContainerUser/Desktop/arma3/steamcmd/steamcmd.exe" -PathType leaf)) {
-        if (!(Test-Path -Path "C:/Users/ContainerUser/Desktop/arma3/steamcmd" -PathType container)) {
-            $(mkdir "C:/Users/ContainerUser/Desktop/arma3/steamcmd" > $null)
+    if (!(Test-Path -Path "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -PathType leaf)) {
+        if (!(Test-Path -Path "C:/Users/ContainerUser/steamcmd" -PathType container)) {
+            $(mkdir "C:/Users/ContainerUser/steamcmd" > $null)
         }
 
-        Invoke-WebRequest -Uri "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip" -OutFile "C:/Users/ContainerUser/Desktop/arma3/steamcmd/steamcmd.zip"
+        Invoke-WebRequest -Uri "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip" -OutFile "C:/Users/ContainerUser/steamcmd/steamcmd.zip"
 
-        Expand-Archive "C:/Users/ContainerUser/Desktop/arma3/steamcmd/steamcmd.zip" "C:/Users/ContainerUser/Desktop/arma3/steamcmd"
+        Expand-Archive "C:/Users/ContainerUser/steamcmd/steamcmd.zip" "C:/Users/ContainerUser/steamcmd"
 
-        Start-Process "C:/Users/ContainerUser/Desktop/arma3/steamcmd/steamcmd.exe" -ArgumentList "+login anonymous +quit" -Wait -NoNewWindow
+        Start-Process "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+login anonymous +quit" -Wait -NoNewWindow
 
-        if (!(Test-Path -Path "C:/Users/ContainerUser/Desktop/arma3/steamcmd/steamapps/workshop/content" -PathType container)) {
-            $(mkdir "C:/Users/ContainerUser/Desktop/arma3/steamcmd/steamapps/workshop/content" > $null)
+        if (!(Test-Path -Path "C:/Users/ContainerUser/steamcmd/steamapps/workshop/content" -PathType container)) {
+            $(mkdir "C:/Users/ContainerUser/steamcmd/steamapps/workshop/content" > $null)
         }
 
         Write-Output "SteamCMD Setup complete"
@@ -49,20 +49,20 @@ function Install-Mods {
     if (($env:MANAGED_MODS -ne "") -and ($env:MANAGED_MODS -ne $null)) {
         Write-Output "Installing mods..."
 
-        if (!(Test-Path -Path "C:/Users/ContainerUser/Desktop/arma3/arma3server/mods" -PathType container)) {
-            New-Item -Path "C:/Users/ContainerUser/Desktop/arma3/arma3server" -Name "mods" -ItemType "directory"
+        if (!(Test-Path -Path "C:/Users/ContainerUser/arma3server/mods" -PathType container)) {
+            New-Item -Path "C:/Users/ContainerUser/arma3server" -Name "mods" -ItemType "directory"
 
-            New-Item -ItemType "Junction" -Path "C:/Users/ContainerUser/Desktop/arma3/steamcmd/steamapps/workshop/content/107410" -Target "C:/Users/ContainerUser/Desktop/arma3/arma3server/mods"
+            New-Item -ItemType "Junction" -Path "C:/Users/ContainerUser/steamcmd/steamapps/workshop/content/107410" -Target "C:/Users/ContainerUser/arma3server/mods"
         }
 
         $MANAGED_MODS_ARRAY = $env:MANAGED_MODS.split(" ")
 
-        $INSTALLED_MODS_ARRAY = Get-ChildItem "C:/Users/ContainerUser/Desktop/arma3/arma3server/mods" | Where-Object {$_.PSIsContainer} | Foreach-Object {$_.Name}
+        $INSTALLED_MODS_ARRAY = Get-ChildItem "C:/Users/ContainerUser/arma3server/mods" | Where-Object {$_.PSIsContainer} | Foreach-Object {$_.Name}
 
         Write-Output "Removing old mods..."
         foreach ($folderName in $INSTALLED_MODS_ARRAY) {
             if (!($folderName -in $MANAGED_MODS_ARRAY)) {
-                Remove-Item "C:/Users/ContainerUser/Desktop/arma3/arma3server/mods/$folderName" -Recurse
+                Remove-Item "C:/Users/ContainerUser/arma3server/mods/$folderName" -Recurse
             }
         }
         Write-Output "Finished removing old mods"
@@ -77,7 +77,7 @@ function Install-Mods {
 					# so we can just try again and it will continue where it left off.
 					# Downloading huge mods might take a few attempts.
                     Write-Output "Downloading mod $modid (attempt $attempt)..."
-                    $steamcmdProcess = (Start-Process -FilePath "C:/Users/ContainerUser/Desktop/arma3/steamcmd/steamcmd.exe" -ArgumentList "+login $env:STEAM_USERNAME $env:STEAM_PASSWORD +workshop_download_item 107410 $modid +quit" -Wait -PassThru)
+                    $steamcmdProcess = (Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+login $env:STEAM_USERNAME $env:STEAM_PASSWORD +workshop_download_item 107410 $modid +quit" -Wait -PassThru)
                     switch ($steamcmdProcess.ExitCode) {
                         0 {break downloadTrier}
                         default {
@@ -101,11 +101,11 @@ function Invoke-Update {
     Check-SteamCredentials
     Ensure-Installation
     if (($null -ne $env:BETA_BRANCH) -and ($null -ne $env:BETA_PASSWORD)) {
-        Start-Process -FilePath "C:/Users/ContainerUser/Desktop/arma3/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/Desktop/arma3/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 -beta $env:BETA_BRANCH -betapassword $env:BETA_PASSWORD +quit" -Wait -NoNewWindow
+        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 -beta $env:BETA_BRANCH -betapassword $env:BETA_PASSWORD +quit" -Wait -NoNewWindow
     } elseif (($null -ne $env:BETA_BRANCH)) {
-        Start-Process -FilePath "C:/Users/ContainerUser/Desktop/arma3/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/Desktop/arma3/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 -beta $env:BETA_BRANCH +quit" -Wait -NoNewWindow
+        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 -beta $env:BETA_BRANCH +quit" -Wait -NoNewWindow
     } else {
-        Start-Process -FilePath "C:/Users/ContainerUser/Desktop/arma3/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/Desktop/arma3/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 +quit" -Wait -NoNewWindow
+        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 +quit" -Wait -NoNewWindow
     }
     Install-Mods
 }
@@ -114,11 +114,11 @@ function Invoke-UpdateValidate {
     Check-SteamCredentials
     Ensure-Installation
     if (($null -ne $env:BETA_BRANCH) -and ($null -ne $env:BETA_PASSWORD)) {
-        Start-Process -FilePath "C:/Users/ContainerUser/Desktop/arma3/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/Desktop/arma3/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 -beta $env:BETA_BRANCH -betapassword $env:BETA_PASSWORD validate +quit" -Wait -NoNewWindow
+        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 -beta $env:BETA_BRANCH -betapassword $env:BETA_PASSWORD validate +quit" -Wait -NoNewWindow
     } elseif (($null -ne $env:BETA_BRANCH)) {
-        Start-Process -FilePath "C:/Users/ContainerUser/Desktop/arma3/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/Desktop/arma3/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 -beta $env:BETA_BRANCH validate +quit" -Wait -NoNewWindow
+        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 -beta $env:BETA_BRANCH validate +quit" -Wait -NoNewWindow
     } else {
-        Start-Process -FilePath "C:/Users/ContainerUser/Desktop/arma3/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/Desktop/arma3/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 validate +quit" -Wait -NoNewWindow
+        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 validate +quit" -Wait -NoNewWindow
     }
     Install-Mods
 }
@@ -126,15 +126,15 @@ function Invoke-UpdateValidate {
 
 function Extract-ModKeys {
     Write-Output "Extracting mod signature keys..."
-    if (!(Test-Path -Path "C:/Users/ContainerUser/Desktop/arma3/arma3server/mods" -PathType container)) {
-        New-Item -Path "C:/Users/ContainerUser/Desktop/arma3/arma3server" -Name "mods" -ItemType "directory"
+    if (!(Test-Path -Path "C:/Users/ContainerUser/arma3server/mods" -PathType container)) {
+        New-Item -Path "C:/Users/ContainerUser/arma3server" -Name "mods" -ItemType "directory"
     }
 
-    if (!(Test-Path -Path "C:/Users/ContainerUser/Desktop/arma3/arma3server/keys" -PathType container)) {
-        New-Item -Path "C:/Users/ContainerUser/Desktop/arma3/arma3server" -Name "keys" -ItemType "directory"
+    if (!(Test-Path -Path "C:/Users/ContainerUser/arma3server/keys" -PathType container)) {
+        New-Item -Path "C:/Users/ContainerUser/arma3server" -Name "keys" -ItemType "directory"
     }
 
-    Get-ChildItem "C:/Users/ContainerUser/Desktop/arma3/arma3server/mods" -Depth 4 -Filter *.bikey | Copy-Item -Destination "C:/Users/ContainerUser/Desktop/arma3/arma3server/keys" -Force
+    Get-ChildItem "C:/Users/ContainerUser/arma3server/mods" -Depth 4 -Filter *.bikey | Copy-Item -Destination "C:/Users/ContainerUser/arma3server/keys" -Force
 }
 
 function Invoke-Start {
@@ -146,8 +146,8 @@ function Invoke-Start {
         }
 
         default {
-            if (!(Test-Path -Path "C:/Users/ContainerUser/Desktop/arma3/arma3server/logfiles" -PathType container)) {
-                New-Item -Path "C:/Users/ContainerUser/Desktop/arma3/arma3server" -Name "logfiles" -ItemType "directory"
+            if (!(Test-Path -Path "C:/Users/ContainerUser/arma3server/logfiles" -PathType container)) {
+                New-Item -Path "C:/Users/ContainerUser/arma3server" -Name "logfiles" -ItemType "directory"
             }
 
             $Start_Options = "-ip=$env:HOST -port=$env:GAME_PORT -name=$env:PROFILE -cfg=$env:BASIC_CFG -config=$env:SERVER_CFG -mod=$env:MODS -serverMod=$env:SERVER_MODS -limitFPS=$env:LIMIT_FPS -profiles=logfiles"
@@ -167,11 +167,11 @@ function Invoke-Start {
     }
 
     if ($false -eq $env:USE_X64) {
-        Write-Output "C:/Users/ContainerUser/Desktop/arma3/arma3server/arma3server.exe $Start_Options"
-        Start-Process -FilePath "C:/Users/ContainerUser/Desktop/arma3/arma3server/arma3server.exe" -ArgumentList $Start_Options
+        Write-Output "C:/Users/ContainerUser/arma3server/arma3server.exe $Start_Options"
+        Start-Process -FilePath "C:/Users/ContainerUser/arma3server/arma3server.exe" -ArgumentList $Start_Options
     } else {
-        Write-Output "C:/Users/ContainerUser/Desktop/arma3/arma3server/arma3server_x64.exe $Start_Options"
-        Start-Process -FilePath "C:/Users/ContainerUser/Desktop/arma3/arma3server/arma3server_x64.exe" -ArgumentList $Start_Options
+        Write-Output "C:/Users/ContainerUser/arma3server/arma3server_x64.exe $Start_Options"
+        Start-Process -FilePath "C:/Users/ContainerUser/arma3server/arma3server_x64.exe" -ArgumentList $Start_Options
     }
     
     Start-Sleep -s 3
