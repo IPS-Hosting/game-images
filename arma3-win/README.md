@@ -1,4 +1,4 @@
-# ARMA III for Windows
+# ARMA III running on Windows Server
 
 GitHub: https://github.com/IPS-Hosting/game-images/tree/main/arma3-win
 
