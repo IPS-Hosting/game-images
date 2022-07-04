@@ -20,13 +20,11 @@ RUN choco install vcredist2010 -y
 RUN choco install vcredist2013 -y
 RUN choco install directx -y
 
-VOLUME "C:/Users/ContainerUser/arma3server"
-VOLUME "C:/Users/ContainerUser/steamcmd"
-
 # Run as unprivileged container user
 # https://docs.microsoft.com/en-us/virtualization/windowscontainers/manage-containers/container-security#when-to-use-containeradmin-and-containeruser-user-accounts
 USER ContainerUser
 WORKDIR "C:/Users/ContainerUser/arma3server"
+VOLUME ["C:/Users/ContainerUser/arma3server", "C:/Users/ContainerUser/steamcmd"]
 
 COPY "./entrypoint.ps1" "C:/Users/ContainerUser/entrypoint.ps1"
 
