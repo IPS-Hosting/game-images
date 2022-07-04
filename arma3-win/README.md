@@ -18,7 +18,9 @@ See https://docs.docker.com/storage/volumes/ for more information.
 To persist the game server data on the host filesystem, use `-v C:/path/on/host:C:/Users/ContainerUser/arma3server` when creating the docker container.
 
 ### Important note about permissions when using bind mounts
-When you use bind mounts, you need to grant the group "Authenticated Users" modify, read and execute, list folder contents, read, and write access to the host directory.
+When you use bind mounts, you need to make sure that the `ContainerUser` inside the container has access to the files.
+This should be the case by default, when the host directory has been created with a non-admin account.
+Otherwise, an ACL can be added, which grants the group "Authenticated Users" modify, read and execute, list folder contents, read, and write access to the host directory.
 
 ## Ports
 * 2302/udp (game)
@@ -98,3 +100,9 @@ The following environment variables can be used to actually load the mods:
 `SERVER_MODS` Same like `MODS`, but used for server-side only mods. Clients will not see these mods. Only works when in the `server` mode.
 
 In addition, when in `server` mode, mod keys can be automatically extracted to the `keys` subdirectory. To enable this, set `EXTRACT_MOD_KEYS=true`.
+
+### Important note about container isolation
+When using the managed mods feature, you can't use Hyper-V container isolation, because we need to create a Junction from one mount point to another.
+Instead, you have to use process isolation using the `--isolation=process` flag when starting the container.
+Process isolation is the default on Windows Server but not on Windows Client operating systems.
+More context: https://github.com/moby/moby/issues/37024, https://docs.microsoft.com/en-us/virtualization/windowscontainers/manage-containers/hyperv-container
