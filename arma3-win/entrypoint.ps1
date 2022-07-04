@@ -101,11 +101,11 @@ function Install-Mods {
 function Invoke-Update {
     Ensure-Installation
     if (($null -ne $env:BETA_BRANCH) -and ($null -ne $env:BETA_PASSWORD)) {
-        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login anonymous +app_update 233780 -beta $env:BETA_BRANCH -betapassword $env:BETA_PASSWORD +quit" -Wait -NoNewWindow
+        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 -beta $env:BETA_BRANCH -betapassword $env:BETA_PASSWORD +quit" -Wait -NoNewWindow
     } elseif (($null -ne $env:BETA_BRANCH)) {
-        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login anonymous +app_update 233780 -beta $env:BETA_BRANCH +quit" -Wait -NoNewWindow
+        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 -beta $env:BETA_BRANCH +quit" -Wait -NoNewWindow
     } else {
-        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login anonymous +app_update 233780 +quit" -Wait -NoNewWindow
+        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 +quit" -Wait -NoNewWindow
     }
     Install-Mods
 }
@@ -113,11 +113,11 @@ function Invoke-Update {
 function Invoke-UpdateValidate {
     Ensure-Installation
     if (($null -ne $env:BETA_BRANCH) -and ($null -ne $env:BETA_PASSWORD)) {
-        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login anonymous +app_update 233780 -beta $env:BETA_BRANCH -betapassword $env:BETA_PASSWORD validate +quit" -Wait -NoNewWindow
+        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 -beta $env:BETA_BRANCH -betapassword $env:BETA_PASSWORD validate +quit" -Wait -NoNewWindow
     } elseif (($null -ne $env:BETA_BRANCH)) {
-        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login anonymous +app_update 233780 -beta $env:BETA_BRANCH validate +quit" -Wait -NoNewWindow
+        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 -beta $env:BETA_BRANCH validate +quit" -Wait -NoNewWindow
     } else {
-        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login anonymous +app_update 233780 validate +quit" -Wait -NoNewWindow
+        Start-Process -FilePath "C:/Users/ContainerUser/steamcmd/steamcmd.exe" -ArgumentList "+force_install_dir C:/Users/ContainerUser/arma3server +login $env:STEAM_USERNAME $env:STEAM_PASSWORD +app_update 233780 validate +quit" -Wait -NoNewWindow
     }
     Install-Mods
 }
