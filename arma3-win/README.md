@@ -17,6 +17,9 @@ See https://docs.docker.com/storage/volumes/ for more information.
 
 To persist the game server data on the host filesystem, use `-v C:/path/on/host:C:/Users/ContainerUser/arma3server` when creating the docker container.
 
+### Important note about permissions when using bind mounts
+When you use bind mounts, you need to grant the group "Authenticated Users" modify, read and execute, list folder contents, read, and write access to the host directory.
+
 ## Ports
 * 2302/udp (game)
 * 2303/udp (query) - always game+1
