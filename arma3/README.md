@@ -60,7 +60,7 @@ To persist the game server data on the host filesystem, use `-v /absolute-path/o
 
 You can change the ports with the `GAME_PORT` environment variable.
 
-## A note about steam credentials
+## A note about Steam credentials
 To be able to download the ARMA III dedicated server, a Steam account which owns the game is required.
 These credentials need to be specified during `update` and `update_validate` via env variables (see below).
 The account must not have Steam guard enabled. Because of that it is not recommended to use your personal Steam account.

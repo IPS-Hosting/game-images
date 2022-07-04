@@ -30,8 +30,8 @@ When you use bind mounts, you need to grant the group "Authenticated Users" modi
 You can change the ports with the `GAME_PORT` environment variable.
 
 ## A note about Steam credentials
-To download workshop addons via SteamCMD, you need to be logged into an account that owns ARMA III.
-These credentials need to be specified during `update` and `update_validate` via env variables when you use the managed mods feature of this image (see below).
+To be able to download the ARMA III dedicated server, a Steam account which owns the game is required.
+These credentials need to be specified during `update` and `update_validate` via env variables (see below).
 The account must not have Steam guard enabled. Because of that it is not recommended to use your personal Steam account.
 
 ## Env variables
