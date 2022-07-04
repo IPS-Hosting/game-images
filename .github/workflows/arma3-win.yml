@@ -33,7 +33,7 @@ jobs:
           password: ${{ secrets.DOCKER_HUB_PASSWORD }}
 
       - name: Build and push
-        uses: dmr-smithers-excellent/docker-build-push@v5
+        uses: mr-smithers-excellent/docker-build-push@v5
         with:
           image: ipshosting/game-${{ env.GAME }}
           tags: v${{ env.VERSION }}, latest
