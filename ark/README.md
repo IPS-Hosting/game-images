@@ -114,4 +114,6 @@ The following env variables are available during `start`.
 
 `FORCE_ALLOW_CAVE_FLYERS` Set to `true` to allow flyer dinos in caves.
 
+`ALLOW_FLYER_CARRY_PVE` Set to `true` to allow flyers on PvE to carry wild dinos.
+
 `NO_BATTLEYE` Set to `true` to disable BattlEye anti cheat.

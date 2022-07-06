@@ -86,6 +86,9 @@ function start() {
 	if [ -n "$SERVER_ADMIN_PASSWORD" ]; then
 		start_command="$start_command?ServerAdminPasword=\"$SERVER_ADMIN_PASSWORD\""
 	fi
+	if [ "$ALLOW_FLYER_CARRY_PVE" == "true" ]; then
+		start_command="$start_command?AllowFlyerCarryPvE=true"
+	fi
 	start_command="$start_command -server -automanagedmods"
 	if [ -n "$PUBLIC_IP" ]; then
 		start_command="$start_command -crossplay -PublicIPForEpic=${PUBLIC_IP}"
