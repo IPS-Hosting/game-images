@@ -1,6 +1,7 @@
 # SCP: Secret Laboratory
 
 GitHub: https://github.com/IPS-Hosting/game-images/tree/main/scpsl
+LocalAdmin: https://github.com/northwood-studios/LocalAdmin-V2
 
 ## Basic usage
 For advanced usage, refer to https://docs.docker.com
