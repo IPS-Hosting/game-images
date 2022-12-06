@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 # libGDI+ is required by some popular plugins like https://umod.org/plugins/sign-artist
 RUN export DEBIAN_FRONTEND=noninteractive \
