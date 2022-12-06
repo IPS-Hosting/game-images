@@ -22,6 +22,10 @@ To run Minecraft servers, the following image is recommended: https://github.com
 
 These images are used for [IPS Hosting](https://www.ips-hosting.com/), a german game server hosting provider. However, feel free to use them for your own needs.
 
+# Input sanitization
+All the images, expect the given user input (e.g. command line arguments and environment variables) to be safe and already sanitized.
+ 
+
 ## Building and Versioning
 On every push to the main branch, all images that were changed are automatically rebuilt and deployed to Docker Hub using the following tags:
 * The image version (e.g. v1, v2, ...)
