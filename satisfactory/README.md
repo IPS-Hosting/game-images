@@ -1,6 +1,7 @@
 # Satisfactory
 
 GitHub: https://github.com/IPS-Hosting/game-images/tree/main/satisfactory
+Wiki: https://satisfactory.fandom.com/wiki/Dedicated_servers
 
 ## Basic usage
 For advanced usage, refer to https://docs.docker.com
@@ -11,7 +12,7 @@ docker create -it --restart always \
   -p 15777:15777/udp \
   -p 15000:15000/udp \
   -p 7777:7777/tcp \
-  ipshosting/game-satisfactory:v1
+  ipshosting/game-satisfactory:v2
   
 # Start the server
 docker start satisfactory-server
@@ -52,7 +53,7 @@ To persist the game server data on the host filesystem, use `-v /absolute-path/o
 * 15000/udp (beacon)
 * 7777/udp (game)
 
-You can change the ports with the `QUERY_PORT`, `BEACON_PORT` and `GAME_PORT` environment variables.
+You can change the ports with the `QUERY_PORT`, `BEACON_PORT` and `PORT` environment variables.
 
 ## Env variables
 Env variables can be configured with the `-e "KEY=VAL"` flag when creating the container. The flag can be used multiple times.
