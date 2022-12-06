@@ -74,3 +74,15 @@ The following env variables are always available during `start`.
 `WORLD` The file name of the world. Defaults to `Dedicated`.
 
 `PASSWORD` The password of the server. Can't be empty and needs to be at least 5 charactgers long. Must not be contained in the server name. Defaults to `secret`.
+
+`PUBLIC` Whether the server should be visible in the server browser. 1 means the server is visible, 0 means it is only joinable via the 'Join IP'-button. Defaults to 1.
+
+`SAVEINTERVAL` How often the world will save in seconds. Defaults to 1800 (30 minutes).
+
+`BACKUPS` Sets how many automatic backups will be kept. The first is the 'short' backup length, and the rest are the 'long' backup length. Defaults to 4.
+
+`BACKUPSHORT` Sets the interval between the first automatic backups. Defaults to 7200 (2 hours).
+
+`BACKUPLONG` Sets the interval between the subsequent automatic backups. Defaults to 43200 (12 hours).
+
+`CROSSPLAY` Set to `true` to enable the Crossplay backend (PlayFab), which lets users from any platform join. By default, only Steam users can see and join the server.
