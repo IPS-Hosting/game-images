@@ -44,9 +44,16 @@ function update() {
 }
 
 function start() {
-	local start_command="./LocalAdmin ${GAME_PORT:-7777} --printStd --noSetCursor --config /home/ips-hosting/localadmin_config.txt --useDefault --logLengthLimit ${LOG_LENGTH_LIMIT:-1G} --gameLogs '/home/ips-hosting/.config/SCP Secret Laboratory/ServerLogs/${GAME_PORT:-7777}' --logs '/home/ips-hosting/.config/SCP Secret Laboratory/LocalAdminLogs/${GAME_PORT:-7777}'"
-	
 	cd /home/ips-hosting
+
+	# Setup useful symlinks
+	ln -svf ".config/SCP Secret Laboratory/ServerLogs/${GAME_PORT:-7777}" /home/ips-hosting/ServerLogs
+	ln -svf ".config/SCP Secret Laboratory/LocalAdminLogs/${GAME_PORT:-7777}" /home/ips-hosting/LocalAdminLogs
+
+	# Ensure .config folder exists: https://github.com/northwood-studios/LocalAdmin-V2/issues/52
+	mkdir -vp .config
+
+	local start_command="./LocalAdmin ${GAME_PORT:-7777} --printStd --noSetCursor --config /home/ips-hosting/localadmin_config.txt --useDefault --logLengthLimit ${LOG_LENGTH_LIMIT:-1G} --gameLogs '/home/ips-hosting/.config/SCP Secret Laboratory/ServerLogs/${GAME_PORT:-7777}' --logs '/home/ips-hosting/.config/SCP Secret Laboratory/LocalAdminLogs/${GAME_PORT:-7777}'"
 	echo "$start_command"
 	eval "$start_command"
 }
