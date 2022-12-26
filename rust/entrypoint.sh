@@ -17,6 +17,15 @@ function ensure_steamcmd() {
 	mkdir -vp /home/ips-hosting/steamapps
 }
 
+function apply_fixes() {
+	ensure_steamcmd
+	# Fixes: [S_API FAIL] SteamAPI_Init() failed; unable to locate a running instance of Steam,or a local steamclient.so.
+	if [ ! -f "/home/ips-hosting/.steam/sdk32/steamclient.so" ]; then
+		mkdir -vp /home/ips-hosting/.steam/sdk32
+		cp -v /tmp/steamcmd/linux32/steamclient.so /home/ips-hosting/.steam/sdk32/steamclient.so
+	fi
+}
+
 function update_validate() {
 	ensure_steamcmd
 	cd /tmp/steamcmd
@@ -30,8 +39,6 @@ function update_validate() {
 	fi
 
 	apply_fixes
-	download_content
-	mount_content
 }
 
 function update() {
