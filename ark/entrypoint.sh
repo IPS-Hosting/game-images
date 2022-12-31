@@ -72,7 +72,7 @@ function update() {
 function start() {
 	local start_command="./ShooterGameServer ${MAP:-TheIsland}?listen?MultiHome=${HOST:-0.0.0.0}?Port=${GAME_PORT:-7777}?QueryPort=${QUERY_PORT:-27015}?RCONPort=${RCON_PORT:-27020}?RCONEnabled=${RCON_ENABLED:-True}?MaxPlayers=${MAX_PLAYERS:-10}"
 	if [ -n "$SESSION_NAME" ]; then
-		start_command="$start_command?SessionName=\"$SESSION_NAME\""
+		start_command="$start_command?SessionName=$SESSION_NAME"
 	fi
 	if [ "$RAW_SOCKETS" == "true" ]; then
 		start_command="$start_command?bRawSockets"
@@ -81,10 +81,10 @@ function start() {
 		start_command="$start_command?GameModIds=$MODS"
 	fi
 	if [ -n "$SERVER_PASSWORD" ]; then
-		start_command="$start_command?ServerPassword=\"$SERVER_PASSWORD\""
+		start_command="$start_command?ServerPassword=$SERVER_PASSWORD"
 	fi
 	if [ -n "$SERVER_ADMIN_PASSWORD" ]; then
-		start_command="$start_command?ServerAdminPasword=\"$SERVER_ADMIN_PASSWORD\""
+		start_command="$start_command?ServerAdminPasword=$SERVER_ADMIN_PASSWORD"
 	fi
 	if [ "$ALLOW_FLYER_CARRY_PVE" == "true" ]; then
 		start_command="$start_command?AllowFlyerCarryPvE=true"
