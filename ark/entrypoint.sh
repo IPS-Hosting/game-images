@@ -84,7 +84,7 @@ function start() {
 		start_command="$start_command?ServerPassword=$SERVER_PASSWORD"
 	fi
 	if [ -n "$SERVER_ADMIN_PASSWORD" ]; then
-		start_command="$start_command?ServerAdminPasword=$SERVER_ADMIN_PASSWORD"
+		start_command="$start_command?ServerAdminPassword=$SERVER_ADMIN_PASSWORD"
 	fi
 	if [ "$ALLOW_FLYER_CARRY_PVE" == "true" ]; then
 		start_command="$start_command?AllowFlyerCarryPvE=true"
