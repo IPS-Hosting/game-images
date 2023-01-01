@@ -113,3 +113,10 @@ The following env variables are always available during `start`.
 
 `APP_PORT` The app port to use for Rust+. Defaults to `28082`. Remember to also update the container port bindings when changing this variable.
 
+`CENTRALIZED_BANNING_ENDPOINT` A URL pointing to a web server which hosts the centralized banning API. See https://wiki.facepunch.com/rust/centralized-banning.
+
+`CENTRALIZED_BANNING_FAILURE_MODE` See https://wiki.facepunch.com/rust/centralized-banning#whathappenswhentheapiendpointisdownornotworkingproperly. Defaults to `0`.
+
+`CENTRALIZED_BANNING_TIMEOUT` The timeout for requests to the centralized banning endpoint in seconds. Defaults to `5`.
+
+`TAGS` The tags for the server. See https://wiki.facepunch.com/rust/server-browser-tags.
