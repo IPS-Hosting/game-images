@@ -1,10 +1,10 @@
-FROM ubuntu:22.04
+FROM ubuntu:20.04
 
 RUN export DEBIAN_FRONTEND=noninteractive \
 	&& groupadd -g 1000 ips-hosting \
 	&& useradd -m -d /home/ips-hosting -u 1000 -g 1000 ips-hosting \
 	&& apt-get update \
-	&& apt-get install -y lib32stdc++6 lib32gcc-s1 libtinfo6 lib32tinfo6 gdb wget tar rsync tzdata libsdl2-dev \
+	&& apt-get install -y lib32stdc++6 lib32gcc1 libtinfo5 lib32tinfo5 gdb wget tar rsync tzdata libsdl2-dev \
 	&& apt-get clean \
 	&& rm -rf /var/lib/apt/* /tmp/* /var/tmp/*
 
