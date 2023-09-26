@@ -3,7 +3,9 @@
 GitHub: https://github.com/IPS-Hosting/game-images/tree/main/rust
 
 ## Basic usage
+
 For advanced usage, refer to https://docs.docker.com
+
 ```shell
 # Create the docker container
 docker create -it --restart always \
@@ -12,7 +14,7 @@ docker create -it --restart always \
   -p 28015:28015/tcp \
   -p 28082:28082/tcp \
   ipshosting/game-rust:v2
-  
+
 # Start the server
 docker start rust-server
 
@@ -33,13 +35,16 @@ docker rm rust-server
 ```
 
 ## Commands
+
 By default, when starting the container, it will be installed and updated, and the rust Server is started afterwards.
 You can create a container with a different command to change this behaviour:
-* **update** Only install the latest version of the server. It won't be started and the container will exit after the rust server is installed and updated.
-* **update_validate** Same like update but will also validate the files. Recommended for the initial installation of the server.
-* **start** Only start the rust server without installing or updating.
+
+- **update** Only install the latest version of the server. It won't be started and the container will exit after the rust server is installed and updated.
+- **update_validate** Same like update but will also validate the files. Recommended for the initial installation of the server.
+- **start** Only start the rust server without installing or updating.
 
 ## Data persistence
+
 Game server data is kept in `/home/ips-hosting`.
 By default a volume will be auto-created which will persist the game server data across server restarts.
 When you re-create the container, a new volume is created and you can't access the old data unless you manually mount the old volume.
@@ -48,30 +53,36 @@ See https://docs.docker.com/storage/volumes/ for more information.
 To persist the game server data on the host filesystem, use `-v /absolute-path/on/host:/home/ips-hosting` when creating the docker container.
 
 ## Ports
-* 28015/udp (game)
-* 28015/tcp (rcon)
-* 28082/tcp (app)
+
+- 28015/udp (game)
+- 28016/udp (query)
+- 28015/tcp (rcon)
+- 28082/tcp (app)
 
 You can change the ports with the `GAME_PORT`, `RCON_PORT` and `APP_PORT` environment variables.
 
 ## Env variables
+
 Env variables can be configured with the `-e "KEY=VAL"` flag when creating the container. The flag can be used multiple times.
 To change the env variables, you need to re-create the container.
 
 ### update and update_validate
+
 The following env variables are available during `update` and `update_validate`.
 
 `BETA_BRANCH` Used to download a different branch of the server.
 
 `BETA_PASSWORD` The password for the beta branch.
 
-
 ### start
+
 The following env variables are always available during `start`.
 
 `HOST` The host address, the server listens on. Defaults to `0.0.0.0`
 
 `GAME_PORT` The game port to use. Defaults to `28015`. Remember to also update the container port bindings when changing this variable.
+
+`QUERY_PORT` The query port to use. Defaults to `28016`. Remember to also update the container port bindings when changing this variable.
 
 `TICKRATE` The tickrate the server uses. Defaults to `30`.
 

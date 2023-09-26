@@ -16,6 +16,7 @@ WORKDIR /home/ips-hosting
 VOLUME /home/ips-hosting
 
 EXPOSE 28015/udp
+EXPOSE 28016/udp
 EXPOSE 28015/tcp
 EXPOSE 28082/tcp
 

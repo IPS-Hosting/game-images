@@ -57,7 +57,7 @@ function update() {
 }
 
 function start() {
-	local start_command="./RustDedicated +server.ip ${HOST:-0.0.0.0} +server.port ${GAME_PORT:-28015} +server.tickrate ${TICKRATE:-30} +server.hostname '${HOSTNAME}' +server.description '${DESCRIPTION}' +server.url '${URL}' +server.headerimage '${HEADER_IMAGE}' +server.logoimage '${LOGO_IMAGE}' +server.identity '${IDENTITY:-default}' +server.gamemode ${GAMEMODE:-vanilla} +server.maxplayers ${MAX_PLAYERS:-50} +server.saveinterval ${SAVE_INTERVAL:-300}"
+	local start_command="./RustDedicated +server.ip ${HOST:-0.0.0.0} +server.port ${GAME_PORT:-28015} +server.queryport ${QUERY_PORT:-28016} +server.tickrate ${TICKRATE:-30} +server.hostname '${HOSTNAME}' +server.description '${DESCRIPTION}' +server.url '${URL}' +server.headerimage '${HEADER_IMAGE}' +server.logoimage '${LOGO_IMAGE}' +server.identity '${IDENTITY:-default}' +server.gamemode ${GAMEMODE:-vanilla} +server.maxplayers ${MAX_PLAYERS:-50} +server.saveinterval ${SAVE_INTERVAL:-300}"
 
 	# Enable RCON if password is configured (server will crash, when password is set to an empty string)
 	if [ -n "$RCON_PASSWORD" ]; then
