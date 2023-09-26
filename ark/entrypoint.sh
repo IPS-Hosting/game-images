@@ -11,10 +11,10 @@ function post_update() {
 	fi
 	# Fixes: [S_API] SteamAPI_Init(): Sys_LoadModule failed to load: /home/ips-hosting/.steam/sdk64/steamclient.so
 	if [ ! -f "/home/ips-hosting/.steam/sdk64/steamclient.so" ]; then
-		mkdir -vp /home/ips-hosting/.steam/sdk32
+		mkdir -vp /home/ips-hosting/.steam/sdk64
 		cp -v /tmp/steamcmd/linux64/steamclient.so /home/ips-hosting/.steam/sdk64/steamclient.so
 	fi
-
+	
 	# Required for -automanagedmods to work (https://steamcommunity.com/app/346110/discussions/0/2523653167135099429/)
 	ensure_steamcmd_ark
 	ln -svf ../../../../../Steam/steamapps /home/ips-hosting/Engine/Binaries/ThirdParty/SteamCMD/Linux/steamapps

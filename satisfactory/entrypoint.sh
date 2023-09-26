@@ -25,7 +25,7 @@ function post_update() {
 	fi
 	# Fixes: [S_API] SteamAPI_Init(): Sys_LoadModule failed to load: /home/ips-hosting/.steam/sdk64/steamclient.so
 	if [ ! -f "/home/ips-hosting/.steam/sdk64/steamclient.so" ]; then
-		mkdir -vp /home/ips-hosting/.steam/sdk32
+		mkdir -vp /home/ips-hosting/.steam/sdk64
 		cp -v /tmp/steamcmd/linux64/steamclient.so /home/ips-hosting/.steam/sdk64/steamclient.so
 	fi
 
