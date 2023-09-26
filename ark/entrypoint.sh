@@ -3,7 +3,18 @@
 set -o errexit
 set -o pipefail
 
-function apply_fixes() {
+function post_update() {
+	# Fixes: [S_API FAIL] SteamAPI_Init() failed; unable to locate a running instance of Steam,or a local steamclient.so.
+	if [ ! -f "/home/ips-hosting/.steam/sdk32/steamclient.so" ]; then
+		mkdir -vp /home/ips-hosting/.steam/sdk32
+		cp -v /tmp/steamcmd/linux32/steamclient.so /home/ips-hosting/.steam/sdk32/steamclient.so
+	fi
+	# Fixes: [S_API] SteamAPI_Init(): Sys_LoadModule failed to load: /home/ips-hosting/.steam/sdk64/steamclient.so
+	if [ ! -f "/home/ips-hosting/.steam/sdk64/steamclient.so" ]; then
+		mkdir -vp /home/ips-hosting/.steam/sdk32
+		cp -v /tmp/steamcmd/linux64/steamclient.so /home/ips-hosting/.steam/sdk64/steamclient.so
+	fi
+
 	# Required for -automanagedmods to work (https://steamcommunity.com/app/346110/discussions/0/2523653167135099429/)
 	ensure_steamcmd_ark
 	ln -svf ../../../../../Steam/steamapps /home/ips-hosting/Engine/Binaries/ThirdParty/SteamCMD/Linux/steamapps
@@ -51,7 +62,7 @@ function update_validate() {
 		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 376030 validate +quit
 	fi
 
-	apply_fixes
+	post_update
 }
 
 function update() {
@@ -66,7 +77,7 @@ function update() {
 		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 376030 +quit
 	fi
 
-	apply_fixes
+	post_update
 }
 
 function start() {

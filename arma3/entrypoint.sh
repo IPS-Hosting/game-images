@@ -15,12 +15,16 @@ function check_steam_credentials() {
 	fi
 }
 
-function apply_fixes() {
+function post_update() {
 	# Fixes: [S_API FAIL] SteamAPI_Init() failed; unable to locate a running instance of Steam,or a local steamclient.so.
-	ensure_steamcmd
 	if [ ! -f "/home/ips-hosting/.steam/sdk32/steamclient.so" ]; then
 		mkdir -vp /home/ips-hosting/.steam/sdk32
 		cp -v /tmp/steamcmd/linux32/steamclient.so /home/ips-hosting/.steam/sdk32/steamclient.so
+	fi
+	# Fixes: [S_API] SteamAPI_Init(): Sys_LoadModule failed to load: /home/ips-hosting/.steam/sdk64/steamclient.so
+	if [ ! -f "/home/ips-hosting/.steam/sdk64/steamclient.so" ]; then
+		mkdir -vp /home/ips-hosting/.steam/sdk32
+		cp -v /tmp/steamcmd/linux64/steamclient.so /home/ips-hosting/.steam/sdk64/steamclient.so
 	fi
 }
 
@@ -120,7 +124,7 @@ function update_validate() {
 	fi
 
 	install_mods
-	apply_fixes
+	post_update
 }
 
 function update() {
@@ -137,7 +141,7 @@ function update() {
 	fi
 
 	install_mods
-	apply_fixes
+	post_update
 }
 
 function extract_mod_keys() {
