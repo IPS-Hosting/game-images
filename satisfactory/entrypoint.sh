@@ -67,12 +67,19 @@ function update() {
 
 
 function start() {
-	local start_command="./UE4Server-Linux-Shipping FactoryGame -ServerQueryPort=${QUERY_PORT:-15777} -BeaconPort=${BEACON_PORT:-15000} -Port=${PORT:-7777} -DisablePacketRouting"
+	cd /home/ips-hosting/Engine/Binaries/Linux
+
+	# Continue supporting Update 7. Update 8 switched to Unreal Engine 5 and the executable was renamed.
+ 	local executable="./UnrealServer-Linux-Shipping"
+  	if [ ! -f "${executable}" ]; then
+   		executable="./UE4Server-Linux-Shipping"
+     	fi
+ 
+	local start_command="${executable} FactoryGame -ServerQueryPort=${QUERY_PORT:-15777} -BeaconPort=${BEACON_PORT:-15000} -Port=${PORT:-7777} -DisablePacketRouting"
 
 	export UE4_PROJECT_ROOT="/home/ips-hosting"
 	export LD_LIBRARY_PATH="/home/ips-hosting/linux64:$LD_LIBRARY_PATH"
-
-	cd /home/ips-hosting/Engine/Binaries/Linux
+	
 	echo "$start_command"
 	eval "$start_command"
 }
