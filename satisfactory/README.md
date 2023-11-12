@@ -11,7 +11,7 @@ docker create -it --restart always \
   --name satisfactory-server \
   -p 15777:15777/udp \
   -p 15000:15000/udp \
-  -p 7777:7777/tcp \
+  -p 7777:7777/udp \
   ipshosting/game-satisfactory:v2
   
 # Start the server
