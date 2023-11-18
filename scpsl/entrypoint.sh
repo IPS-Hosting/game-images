@@ -43,6 +43,26 @@ function update() {
 	fi
 }
 
+# Function to update config
+function update_config() {
+	local key=$1
+	local value=$2
+
+	CONFIG_FILE="/home/ips-hosting/.config/SCP Secret Laboratory/config/${GAME_PORT:-7777}/config_gameplay.txt"
+
+	# Convert key to lowercase
+	key=$(echo "$key" | tr '[:upper:]' '[:lower:]')
+
+	# Check if the key exists in the file
+	if grep -q "^$key:" "$CONFIG_FILE"; then
+	# Key exists, update it
+	sed -i "s/^$key:.*/$key: $value/" "$CONFIG_FILE"
+	else
+	# Key doesn't exist, add it
+	echo "$key: $value" >> "$CONFIG_FILE"
+	fi
+}
+
 function start() {
 	cd /home/ips-hosting
 
@@ -52,6 +72,23 @@ function start() {
 
 	# Ensure .config folder exists: https://github.com/northwood-studios/LocalAdmin-V2/issues/52
 	mkdir -vp .config
+
+	# Loop through all config environment variables and add to config_gameplay.txt
+	for var in $(compgen -e); do
+		# Convert the variable name to lowercase for comparison
+		var_lower=$(echo "$var" | tr '[:upper:]' '[:lower:]')
+
+		# Check for variables starting with CONFIG_ or config_
+		if [[ $var_lower == config_* ]]; then
+			# Extract the key name (remove CONFIG_ prefix)
+			key=${var_lower#config_}
+			# Get the value of the variable
+			value=${!var}
+		
+			# Update the config file
+			update_config "$key" "$value"
+    		fi
+	done
 
 	local start_command="./LocalAdmin ${GAME_PORT:-7777} --printStd --noSetCursor --config /home/ips-hosting/localadmin_config.txt --useDefault --logLengthLimit ${LOG_LENGTH_LIMIT:-1G} --gameLogs '/home/ips-hosting/.config/SCP Secret Laboratory/ServerLogs/${GAME_PORT:-7777}' --logs '/home/ips-hosting/.config/SCP Secret Laboratory/LocalAdminLogs/${GAME_PORT:-7777}'"
 	echo "$start_command"
