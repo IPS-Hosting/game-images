@@ -43,12 +43,12 @@ function update() {
 	fi
 }
 
+CONFIG_FILE="/home/ips-hosting/.config/SCP Secret Laboratory/config/${GAME_PORT:-7777}/config_gameplay.txt"
+
 # Function to update config
 function update_config() {
 	local key=$1
 	local value=$2
-
-	CONFIG_FILE="/home/ips-hosting/.config/SCP Secret Laboratory/config/${GAME_PORT:-7777}/config_gameplay.txt"
 
 	# Convert key to lowercase
 	key=$(echo "$key" | tr '[:upper:]' '[:lower:]')
@@ -70,8 +70,17 @@ function start() {
 	ln -svf ".config/SCP Secret Laboratory/ServerLogs/${GAME_PORT:-7777}" /home/ips-hosting/ServerLogs
 	ln -svf ".config/SCP Secret Laboratory/LocalAdminLogs/${GAME_PORT:-7777}" /home/ips-hosting/LocalAdminLogs
 
-	# Ensure .config folder exists: https://github.com/northwood-studios/LocalAdmin-V2/issues/52
-	mkdir -vp .config
+	local start_command="./LocalAdmin ${GAME_PORT:-7777} --printStd --noSetCursor --config /home/ips-hosting/localadmin_config.txt --useDefault --logLengthLimit ${LOG_LENGTH_LIMIT:-1G} --gameLogs '/home/ips-hosting/.config/SCP Secret Laboratory/ServerLogs/${GAME_PORT:-7777}' --logs '/home/ips-hosting/.config/SCP Secret Laboratory/LocalAdminLogs/${GAME_PORT:-7777}'"
+
+ 	if [! -f "$CONFIG_FILE"]; then
+  		echo "Error: config_gameplay.txt does not exist at $CONFIG_FILE. Running server for 30s to generate config..."
+		
+  		# Ensure .config folder exists: https://github.com/northwood-studios/LocalAdmin-V2/issues/52
+		mkdir -vp .config
+
+  		# Run server long enough to generate config
+    		timeout 30s eval "$start_command"
+  	fi
 
 	# Loop through all config environment variables and add to config_gameplay.txt
 	for var in $(compgen -e); do
@@ -90,7 +99,6 @@ function start() {
     		fi
 	done
 
-	local start_command="./LocalAdmin ${GAME_PORT:-7777} --printStd --noSetCursor --config /home/ips-hosting/localadmin_config.txt --useDefault --logLengthLimit ${LOG_LENGTH_LIMIT:-1G} --gameLogs '/home/ips-hosting/.config/SCP Secret Laboratory/ServerLogs/${GAME_PORT:-7777}' --logs '/home/ips-hosting/.config/SCP Secret Laboratory/LocalAdminLogs/${GAME_PORT:-7777}'"
 	echo "$start_command"
 	eval "$start_command"
 }
