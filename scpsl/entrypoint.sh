@@ -55,11 +55,11 @@ function update_config() {
 
 	# Check if the key exists in the file
 	if grep -q "^$key:" "$CONFIG_FILE"; then
-	# Key exists, update it
-	sed -i "s/^$key:.*/$key: $value/" "$CONFIG_FILE"
+		# Key exists, update it
+		sed -i "s/^$key:.*/$key: $value/" "$CONFIG_FILE"
 	else
-	# Key doesn't exist, add it
-	echo "$key: $value" >> "$CONFIG_FILE"
+		# Key doesn't exist, add it
+		echo "$key: $value" >> "$CONFIG_FILE"
 	fi
 }
 
@@ -72,15 +72,15 @@ function start() {
 
 	local start_command="./LocalAdmin ${GAME_PORT:-7777} --printStd --noSetCursor --config /home/ips-hosting/localadmin_config.txt --useDefault --logLengthLimit ${LOG_LENGTH_LIMIT:-1G} --gameLogs '/home/ips-hosting/.config/SCP Secret Laboratory/ServerLogs/${GAME_PORT:-7777}' --logs '/home/ips-hosting/.config/SCP Secret Laboratory/LocalAdminLogs/${GAME_PORT:-7777}'"
 
- 	if [! -f "$CONFIG_FILE"]; then
-  		echo "Error: config_gameplay.txt does not exist at $CONFIG_FILE. Running server for 30s to generate config..."
-		
-  		# Ensure .config folder exists: https://github.com/northwood-studios/LocalAdmin-V2/issues/52
+ 	if [ ! -f "$CONFIG_FILE" ]; then
+		echo "Error: config_gameplay.txt does not exist at $CONFIG_FILE. Running server for 30s to generate config..."
+
+		# Ensure .config folder exists: https://github.com/northwood-studios/LocalAdmin-V2/issues/52
 		mkdir -vp .config
 
-  		# Run server long enough to generate config
-    		timeout 30s eval "$start_command"
-  	fi
+		# Run server long enough to generate config
+		echo "yes" | eval timeout 30s "$start_command" || true
+	fi
 
 	# Loop through all config environment variables and add to config_gameplay.txt
 	for var in $(compgen -e); do
@@ -93,10 +93,10 @@ function start() {
 			key=${var_lower#config_}
 			# Get the value of the variable
 			value=${!var}
-		
+
 			# Update the config file
 			update_config "$key" "$value"
-    		fi
+		fi
 	done
 
 	echo "$start_command"
