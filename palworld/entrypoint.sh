@@ -69,7 +69,7 @@ function init_config() {
 function start() {
 	init_config
 
-	local start_command="./Pal/Binaries/Linux/PalServer-Linux-Test port=${GAME_PORT:-8211} players=${PLAYERS:-32}"
+	local start_command="./Pal/Binaries/Linux/PalServer-Linux-Test port=${GAME_PORT:-8211} players=${MAX_PLAYERS:-32}"
 
 	if [ "$ENABLE_COMMUNITY_SERVER" == "true" ]; then
 		start_command="$start_command EpicApp=PalServer"

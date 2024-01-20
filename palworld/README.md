@@ -69,7 +69,7 @@ The following env variables are always available during `start`.
 
 `GAME_PORT` The game port to use. Defaults to `8211`. Remember to also update the container port bindings when changing this variable.
 
-`PLAYERS` Mximum amount of players that can connect. Defaults to `32`.
+`MAX_PLAYERS` Maximum amount of players that can connect. Defaults to `32`.
 
 `ENABLE_MULTI_THREADING` Set to `true` to improve performance in multi-threaded CPU environments. Effective up to a maximum of 4 CPU cores.
 
