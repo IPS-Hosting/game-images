@@ -72,3 +72,15 @@ The following env variables are always available during `start`.
 
 `LOG_LENGTH_LIMIT` Specifies the limit of characters in LocalAdmin log file. Suffixes k, M, G and T are supported. Defaults to `1G`.
 	
+It is possible to update the config_gameplay.txt on startup using environment variables, prefixed with `CONFIG_`. Existing properties will be modified, otherwise the property will be appended to the file. E.g.:
+
+```sh
+# -> server_name: My New Server Name
+export config_server_name="My New Server Name"
+
+# -> use_native_sockets: true
+export CONFIG_USE_NATIVE_SOCKETS=true
+
+# -> my_new_property: 3.66
+export cOnFiG_my_new_property=3.66
+```
