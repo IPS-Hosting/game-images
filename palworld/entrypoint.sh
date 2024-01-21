@@ -9,6 +9,9 @@ function post_update() {
 		mkdir -vp /home/ips-hosting/.steam/sdk64
 		cp -v /tmp/steamcmd/linux64/steamclient.so /home/ips-hosting/.steam/sdk64/steamclient.so
 	fi
+
+	# Setup useful symlinks
+	ln -svf Pal/Saved/Config/LinuxServer/PalWorldSettings.ini /home/ips-hosting/PalWorldSettings.ini
 }
 
 function ensure_steamcmd() {
