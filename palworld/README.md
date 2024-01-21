@@ -49,8 +49,10 @@ To persist the game server data on the host filesystem, use `-v /absolute-path/o
 
 ## Ports
 * 8211/udp (game)
+* 25575/tcp (rcon)
 
-You can change the port with the `GAME_PORT` environment variable.
+You can change the game port with the `GAME_PORT` environment variable.
+The RCON port can be changed using the `RCONPort` setting in the `PalWorldSettings.ini` file. Note that RCON is disabled by default and needs to be enabled in the same file using the `RCONEnabled` setting.
 
 ## Env variables
 Env variables can be configured with the `-e "KEY=VAL"` flag when creating the container. The flag can be used multiple times.
