@@ -1,6 +1,7 @@
 # V Rising
 
 GitHub: https://github.com/IPS-Hosting/game-images/tree/main/vrising
+
 Official Server Instructions: https://github.com/StunlockStudios/vrising-dedicated-server-instructions
 
 ## Basic usage
@@ -70,9 +71,9 @@ The following env variables are always available during `start` to overwrite the
 
 `HOST` The host address, the server listens on.
 
-`GAME_PORT` The game port to use. Remember to also update the container port bindings when changing this variable.
+`GAME_PORT` The game port to use. This port needs to be used when using the direct connect feature in game. Remember to also update the container port bindings when changing this variable.
 
-`QUERY_PORT` The query port to use. Remember to also update the container port bindings when changing this variable.
+`QUERY_PORT` The query port to use. Used for Steam Server List features. Remember to also update the container port bindings when changing this variable.
 
 `SAVE_NAME` The name of the save file / directory.
 
