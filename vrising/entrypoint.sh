@@ -64,10 +64,18 @@ function start() {
 		start_command="$start_command -serverName '$SERVER_NAME'"
 	fi
 	if [ -n "$MAX_CONNECTED_USERS" ]; then
+		 # Deprecated
 		start_command="$start_command -maxConnectedUsers $MAX_CONNECTED_USERS"
 	fi
+ 	if [ -n "$MAX_USERS" ]; then
+		start_command="$start_command -maxUsers $MAX_USERS"
+	fi
 	if [ -n "$MAX_CONNECTED_ADMINS" ]; then
+		 # Deprecated
 		start_command="$start_command -maxConnectedAdmins $MAX_CONNECTED_ADMINS"
+	fi
+ 	if [ -n "$MAX_ADMINS" ]; then
+		start_command="$start_command -maxAdmins $MAX_ADMINS"
 	fi
 	
 	cd /home/ips-hosting

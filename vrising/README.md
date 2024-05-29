@@ -78,6 +78,6 @@ The following env variables are always available during `start` to overwrite the
 
 `SERVER_NAME` The name of the server.
 
-`MAX_CONNECTED_USERS` The maximum amount of concurrent players on the server.
+`MAX_USERS` The maximum amount of concurrent players on the server.
 
-`MAX_CONNECTED_ADMINS` The maximum amount of admins to allow connect even when server is full.
+`MAX_ADMINS` The maximum amount of admins to allow connect even when server is full.
