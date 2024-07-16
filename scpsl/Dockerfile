@@ -16,6 +16,8 @@ USER ips-hosting
 WORKDIR /home/ips-hosting
 VOLUME /home/ips-hosting
 
+ENV HOME=/home/ips-hosting
+
 # https://github.com/northwood-studios/LocalAdmin-V2/issues/18#issuecomment-758485918
 ENV HOME=/home/ips-hosting
 

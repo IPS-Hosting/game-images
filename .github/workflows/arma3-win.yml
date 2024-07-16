@@ -8,12 +8,12 @@ on:
     branches:
       - main
     paths:
-      - 'arma3-win/**'
+      - "arma3-win/**"
 
 env:
   GAME: arma3-win
   VERSION: 1
-  DOCKER_HUB_DESCRIPTION: 'ARMA III game server and headless client running on Windows Server'
+  DOCKER_HUB_DESCRIPTION: "ARMA III game server and headless client running on Windows Server"
 
 jobs:
   build-and-deploy:
@@ -45,4 +45,3 @@ jobs:
           repository: ipshosting/game-${{ env.GAME }}
           short-description: ${{ env.DOCKER_HUB_DESCRIPTION }}
           readme-filepath: ./${{ env.GAME }}/README.md
-          

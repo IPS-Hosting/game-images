@@ -14,6 +14,8 @@ USER ips-hosting
 WORKDIR /home/ips-hosting
 VOLUME /home/ips-hosting
 
+ENV HOME=/home/ips-hosting
+
 EXPOSE 8766/udp
 EXPOSE 16261/udp
 

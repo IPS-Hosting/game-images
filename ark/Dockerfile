@@ -7,12 +7,14 @@ RUN export DEBIAN_FRONTEND=noninteractive \
 	&& apt-get install -y lib32gcc-s1 wget tar curl perl-modules tzdata \
 	&& apt-get clean \
 	&& rm -rf /var/lib/apt/* /tmp/* /var/tmp/*
-	
+
 COPY --chown=ips-hosting:ips-hosting --chmod=777 ./entrypoint.sh /ips-hosting/
 
 USER ips-hosting
 WORKDIR /home/ips-hosting
 VOLUME /home/ips-hosting
+
+ENV HOME=/home/ips-hosting
 
 EXPOSE 27020/tcp
 EXPOSE 27015/udp

@@ -3,7 +3,9 @@
 GitHub: https://github.com/IPS-Hosting/game-images/tree/main/altv
 
 ## Basic usage
+
 For advanced usage, refer to https://docs.docker.com
+
 ```shell
 # Create the docker container
 docker create -it --restart always \
@@ -11,7 +13,7 @@ docker create -it --restart always \
   -p 7788:7788/tcp \
   -p 7788:7788/udp \
   ipshosting/game-altv:v2
-  
+
 # Start the server
 docker start altv-server
 
@@ -32,26 +34,35 @@ docker rm altv-server
 ```
 
 ## Commands
+
 By default, when starting the container, it will be installed and updated, and the alt:V Server is started afterwards.
 You can create a container with a different command to change this behaviour:
-* **install_update** Only install and update the server. It won't be started and the container will exit after the alt:V server is installed and updated.
-* **start** Only start the alt:V server without installing or updating.
+
+- **install_update** Only install and update the server. It won't be started and the container will exit after the alt:V server is installed and updated.
+- **start** Only start the alt:V server without installing or updating.
 
 ## Data persistence
+
 Game server data is kept in `/home/ips-hosting`.
 By default a volume will be auto-created which will persist the game server data across server restarts.
 When you re-create the container, a new volume is created and you can't access the old data unless you manually mount the old volume.
 See https://docs.docker.com/storage/volumes/ for more information.
 
-To persist the game server data on the host filesystem, use `-v /absolute-path/on/host:/home/ips-hosting` when creating the docker container.
+To persist the game server data on the host filesystem, use `-v /absolute/path/on/host:/home/ips-hosting` when creating the docker container.
+The container is run as a non-root user by default and the user running inside the container has the id 1000. Make sure that the mounted directory is readable and writable by the user running the container. There are 2 ways to achieve this:
+
+- Change the owner of the host directory: `chown -R 1000 /absolute/path/on/host` OR
+- Run the container as the user, which owns the files on the host system. Make sure to specify the id of your local user, because the name is uknown inside the container. You can find it out using `id YOUR_USERNAME`. Then run the docker command using the `--user USER_ID` flag. E.g.: `docker create --user 500 ...`.
 
 ## Ports
-* 7788/tcp (http)
-* 7788/udp (game)
+
+- 7788/tcp (http)
+- 7788/udp (game)
 
 You can change the port with the `PORT` environment variable.
 
 ## Env variables
+
 Env variables can be configured with the `-e "KEY=VAL"` flag when creating the container. The flag can be used multiple times.
 To change the env variables, you need to re-create the container.
 
@@ -60,5 +71,6 @@ To change the env variables, you need to re-create the container.
 `PORT` The port the server listens on. Defaults to `7788`.
 
 ## NPM / Yarn support
+
 When installing and updating the server, node packages will be automatically installed using `yarn` or `npm` when there is a `yarn.lock` or `package-lock.json` file.
 Also, when there is a`package.json` file with a `build` script, it will automatically be run.

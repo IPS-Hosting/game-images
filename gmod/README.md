@@ -3,7 +3,9 @@
 GitHub: https://github.com/IPS-Hosting/game-images/tree/main/gmod
 
 ## Basic usage
+
 For advanced usage, refer to https://docs.docker.com
+
 ```shell
 # Create the docker container
 docker create -it --restart always \
@@ -12,7 +14,7 @@ docker create -it --restart always \
   -p 27015:27015/tcp \
   -p 27005:27005/tcp \
   ipshosting/game-gmod:v2
-  
+
 # Start the server
 docker start gmod-server
 
@@ -33,46 +35,57 @@ docker rm gmod-server
 ```
 
 ## Commands
+
 By default, when starting the container, it will be installed and updated, and the gmod Server is started afterwards.
 You can create a container with a different command to change this behaviour:
-* **update** Only install the latest version of the server. It won't be started and the container will exit after the gmod server is installed and updated.
-* **update_validate** Same like update but will also validate the files. Recommended for the initial installation of the server.
-* **start** Only start the gmod server without installing or updating.
+
+- **update** Only install the latest version of the server. It won't be started and the container will exit after the gmod server is installed and updated.
+- **update_validate** Same like update but will also validate the files. Recommended for the initial installation of the server.
+- **start** Only start the gmod server without installing or updating.
 
 ## Data persistence
+
 Game server data is kept in `/home/ips-hosting`.
 By default a volume will be auto-created which will persist the game server data across server restarts.
 When you re-create the container, a new volume is created and you can't access the old data unless you manually mount the old volume.
 See https://docs.docker.com/storage/volumes/ for more information.
 
-To persist the game server data on the host filesystem, use `-v /absolute-path/on/host:/home/ips-hosting` when creating the docker container.
+To persist the game server data on the host filesystem, use `-v /absolute/path/on/host:/home/ips-hosting` when creating the docker container.
+The container is run as a non-root user by default and the user running inside the container has the id 1000. Make sure that the mounted directory is readable and writable by the user running the container. There are 2 ways to achieve this:
+
+- Change the owner of the host directory: `chown -R 1000 /absolute/path/on/host` OR
+- Run the container as the user, which owns the files on the host system. Make sure to specify the id of your local user, because the name is uknown inside the container. You can find it out using `id YOUR_USERNAME`. Then run the docker command using the `--user USER_ID` flag. E.g.: `docker create --user 500 ...`.
 
 ## Ports
-* 27015/udp (game)
-* 27015/tcp (rcon) always the same as game
-* 27005/tcp (client)
+
+- 27015/udp (game)
+- 27015/tcp (rcon) always the same as game
+- 27005/tcp (client)
 
 You can change the ports with the `GAME_PORT` and `CLIENT_PORT` environment variables.
 
 ## Game content
+
 CSS is automatically downloaded and mounted during `update_validate`.
 Content is placed in `/home/ips-hosting/.ips-hosting/game-content/cstrike`.
 This is required because many maps use props from CSS. Without the content being mounted on the server, those props have no physics.
 Things that are not needed for content like maps are not kept to reduce disk usage.
 
 ## Env variables
+
 Env variables can be configured with the `-e "KEY=VAL"` flag when creating the container. The flag can be used multiple times.
 To change the env variables, you need to re-create the container.
 
 ### update and update_validate
+
 The following env variables are available during `update` and `update_validate`.
 
 `BETA_BRANCH` Used to download a different branch of the server.
 
 `BETA_PASSWORD` The password for the beta branch.
 
-
 ### start
+
 The following env variables are always available during `start`.
 
 `USE_X64` Set to `true` to use the 64 bit executable. Note that, as of writing, the 64 bit executable is only available in several beta branches.

@@ -50,7 +50,11 @@ By default a volume will be auto-created which will persist the game server data
 When you re-create the container, a new volume is created and you can't access the old data unless you manually mount the old volume.
 See https://docs.docker.com/storage/volumes/ for more information.
 
-To persist the game server data on the host filesystem, use `-v /absolute-path/on/host:/home/ips-hosting` when creating the docker container.
+To persist the game server data on the host filesystem, use `-v /absolute/path/on/host:/home/ips-hosting` when creating the docker container.
+The container is run as a non-root user by default and the user running inside the container has the id 1000. Make sure that the mounted directory is readable and writable by the user running the container. There are 2 ways to achieve this:
+
+- Change the owner of the host directory: `chown -R 1000 /absolute/path/on/host` OR
+- Run the container as the user, which owns the files on the host system. Make sure to specify the id of your local user, because the name is uknown inside the container. You can find it out using `id YOUR_USERNAME`. Then run the docker command using the `--user USER_ID` flag. E.g.: `docker create --user 500 ...`.
 
 ## Ports
 

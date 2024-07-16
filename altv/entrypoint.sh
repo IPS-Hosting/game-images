@@ -5,7 +5,6 @@ set -o pipefail
 
 # Downloads the alt:V updater, overwriting any previous or potentially modified version.
 function ensure_altv_updater() {
-	mkdir -vp /home/ips-hosting
 	cd /home/ips-hosting
 	wget -vO 'update.sh' 'https://raw.githubusercontent.com/Lhoerion/altv-serverupdater/master/update.sh'
 	chmod +x ./update.sh
