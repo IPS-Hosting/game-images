@@ -57,7 +57,7 @@ function start() {
 	fi
 
     # Set ENV variables required by Valheim server.
-	export LD_LIBRARY_PATH=./linux64:$LD_LIBRARY_PATH
+	export LD_LIBRARY_PATH=/home/ips-hosting/linux64:$LD_LIBRARY_PATH
 	export SteamAppId=892970
 
 	local start_command="./valheim_server.x86_64 -port ${GAME_PORT:-2456} -name '${NAME:-A Valheim server}' -world '${WORLD:-Dedicated}' -password '${PASSWORD:-secret}' -savedir '/home/ips-hosting/data' -public ${PUBLIC:-1} -saveinterval ${SAVEINTERVAL:-1800} -backups ${BACKUPS:-4} -backupshort ${BACKUPSHORT:-7200} -backuplong ${BACKUPLONG:-43200}"
