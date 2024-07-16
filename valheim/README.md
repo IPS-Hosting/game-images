@@ -53,7 +53,7 @@ To persist the game server data on the host filesystem, use `-v /absolute/path/o
 The container is run as a non-root user by default and the user running inside the container has the id 1000. Make sure that the mounted directory is readable and writable by the user running the container. There are 2 ways to achieve this:
 
 - Change the owner of the host directory: `chown -R 1000 /absolute/path/on/host` OR
-- Run the container as the user, which owns the files on the host system. Make sure to specify the id of your local user, because the name is uknown inside the container. You can find it out using `id YOUR_USERNAME`. Then run the docker command using the `--user USER_ID` flag. E.g.: `docker create --user 500 ...`.
+- ~~Run the container as the user, which owns the files on the host system. Make sure to specify the id of your local user, because the name is uknown inside the container. You can find it out using `id YOUR_USERNAME`. Then run the docker command using the `--user USER_ID` flag. E.g.: `docker create --user 500 ...`.~~ NOTE: As of writing, this method does not work for Valheim and produces a Segmentation Fault error.
 
 ## Ports
 
