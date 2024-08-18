@@ -72,11 +72,7 @@ function init_config() {
 function start() {
 	init_config
 
-	local start_command="./Pal/Binaries/Linux/PalServer-Linux-Test port=${GAME_PORT:-8211} players=${MAX_PLAYERS:-32}"
-
-	if [ "$ENABLE_COMMUNITY_SERVER" == "true" ]; then
-		start_command="$start_command EpicApp=PalServer"
-	fi
+	local start_command="./Pal/Binaries/Linux/PalServer-Linux-Shipping Pal -port ${GAME_PORT:-8211} -players ${MAX_PLAYERS:-32} -logformat ${LOG_FORMAT:-text}"
 
 	if [ -n "$PUBLIC_IP" ]; then
 		start_command="$start_command -publicip ${PUBLIC_IP}"
@@ -87,7 +83,7 @@ function start() {
 	fi
 
 	if [ "$ENABLE_COMMUNITY_SERVER" == "true" ]; then
-		start_command="$start_command EpicApp=PalServer"
+		start_command="$start_command -publiclobby"
 	fi
 
 	if [ "$ENABLE_MULTI_THREADING" == "true" ]; then
