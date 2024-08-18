@@ -85,6 +85,8 @@ The following env variables are always available during `start`.
 
 `MAX_PLAYERS` Maximum amount of players that can connect. Defaults to `32`.
 
+`LOG_FORMAT` The format of the logs outputted by the server. Can be `text` or `json`. Defaults to `text`.
+
 `ENABLE_MULTI_THREADING` Set to `true` to improve performance in multi-threaded CPU environments. Effective up to a maximum of 4 CPU cores.
 
 `ENABLE_COMMUNITY_SERVER` Set to `true` to make the server appear in the list of community servers.
