@@ -5,7 +5,7 @@ RUN export DEBIAN_FRONTEND=noninteractive \
 	&& useradd -m -d /home/ips-hosting -u 1000 -g 1000 ips-hosting \
 	&& dpkg --add-architecture 'i386' \
 	&& apt-get update \
-	&& apt-get install -y lib32stdc++6 lib32gcc-s1 libtinfo5 libtinfo5:i386 gdb wget tar rsync tzdata libsdl2-dev \
+	&& apt-get install -y lib32stdc++6 lib32gcc-s1 libtinfo5 libtinfo5:i386 curl gdb wget tar rsync tzdata libsdl2-dev \
 	&& apt-get clean \
 	&& rm -rf /var/lib/apt/* /tmp/* /var/tmp/*
 
