@@ -69,7 +69,7 @@ function update() {
 function start() {
 	cd /home/ips-hosting/Engine/Binaries/Linux
 
-	local start_command="./FactoryServer-Linux-Shipping FactoryGame -Port=${PORT:-7777} -DisablePacketRouting"
+	local start_command="./FactoryServer-Linux-Shipping FactoryGame -Port=${PORT:-7777} -DisablePacketRouting -ini:Engine:[HTTPServer.Listeners]:DefaultBindAddress=any"
 
 	export UE_PROJECT_ROOT="/home/ips-hosting"
 
