@@ -59,11 +59,10 @@ The container is run as a non-root user by default and the user running inside t
 
 ## Ports
 
-- 15777/udp (query)
-- 15000/udp (beacon)
+- 7777/tcp (http)
 - 7777/udp (game)
 
-You can change the ports with the `QUERY_PORT`, `BEACON_PORT` and `PORT` environment variables.
+You can change the ports with the `PORT` environment variable. Both ports will always use the same number.
 
 ## Env variables
 
