@@ -22,4 +22,6 @@ ENV WINEARCH=win64
 # The public branch of sbox is not updated and does not launch, because it requires dotnet 7 instead of 9.
 ENV BETA_BRANCH=staging
 
+EXPOSE 27015/tcp
+
 ENTRYPOINT ["/bin/bash", "/ips-hosting/entrypoint.sh"]
