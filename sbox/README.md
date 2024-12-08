@@ -3,6 +3,9 @@
 GitHub: https://github.com/IPS-Hosting/game-images/tree/main/sbox
 S&Box documentation: https://docs.facepunch.com/s/sbox-dev/doc/dedicated-servers-WGeGAD9U8d#h-installation
 
+There's no Linux server build yet, there will be one in the future.
+Therefore this container downloads the windows build and uses wine to run the server.
+
 ## Basic usage
 
 For advanced usage, refer to https://docs.docker.com
@@ -71,8 +74,8 @@ The following env variables are available during `update` and `update_validate`.
 
 The following env variables are always available during `start`.
 
-`GAME` The game package to load and optionally a map package.
+`SBOX_GAME` The game package to load and optionally a map package.
 
-`HOSTNAME` The server title that players will see.
+`SBOX_HOSTNAME` The server title that players will see.
 
-`TOKEN` Visit https://steamcommunity.com/dev/managegameservers to generate a token associated with your Steam Account. You can use this token to ensure your Dedicated Server always has the same Steam ID for other players to connect to it. You don’t need this, but otherwise every time you load the server it will generate a new Steam ID.
+`SBOX_STEAM_TOKEN` Visit https://steamcommunity.com/dev/managegameservers to generate a token associated with your Steam Account. You can use this token to ensure your Dedicated Server always has the same Steam ID for other players to connect to it. You don’t need this, but otherwise every time you load the server it will generate a new Steam ID.

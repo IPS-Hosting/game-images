@@ -3,6 +3,20 @@
 set -o errexit
 set -o pipefail
 
+function setup_wine() {
+    if [ ! -d "$WINEPREFIX" ]; then
+        wineboot
+    fi
+
+    # Install .NET Desktop Runtime 9
+    if [ ! -f "$WINEPREFIX/drive_c/Program Files/dotnet" ]; then
+        mkdir -vp /tmp/dotnet
+        cd /tmp/dotnet
+        wget https://download.visualstudio.microsoft.com/download/pr/685792b6-4827-4dca-a971-bce5d7905170/1bf61b02151bc56e763dc711e45f0e1e/windowsdesktop-runtime-9.0.0-win-x64.exe
+        xvfb-run -a wine ./windowsdesktop-runtime-9.0.0-win-x64.exe /quiet /norestart
+    fi
+}
+
 function ensure_steamcmd() {
 	mkdir -vp /tmp/steamcmd
 	cd /tmp/steamcmd
@@ -18,15 +32,16 @@ function ensure_steamcmd() {
 }
 
 function update_validate() {
+    setup_wine
 	ensure_steamcmd
 	cd /tmp/steamcmd
 
 	if [ -n "${BETA_BRANCH}" ] && [ -n "${BETA_PASSWORD}" ]; then
-		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 1892930 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" validate +quit
+		./steamcmd.sh +@sSteamCmdForcePlatformType windows +force_install_dir /home/ips-hosting +login anonymous +app_update 1892930 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" validate +quit
 	elif [ -n "$BETA_BRANCH" ]; then
-		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 1892930 -beta "${BETA_BRANCH}" validate +quit
+		./steamcmd.sh +@sSteamCmdForcePlatformType windows +force_install_dir /home/ips-hosting +login anonymous +app_update 1892930 -beta "${BETA_BRANCH}" validate +quit
 	else
-		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 1892930 validate +quit
+		./steamcmd.sh +@sSteamCmdForcePlatformType windows +force_install_dir /home/ips-hosting +login anonymous +app_update 1892930 validate +quit
 	fi
 }
 
@@ -35,30 +50,21 @@ function update() {
 	cd /tmp/steamcmd
 
 	if [ -n "${BETA_BRANCH}" ] && [ -n "${BETA_PASSWORD}" ]; then
-		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 1892930 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" +quit
+		./steamcmd.sh +@sSteamCmdForcePlatformType windows +force_install_dir /home/ips-hosting +login anonymous +app_update 1892930 -beta "${BETA_BRANCH}" -betapassword "${BETA_PASSWORD}" +quit
 	elif [ -n "$BETA_BRANCH" ]; then
-		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 1892930 -beta "${BETA_BRANCH}" +quit
+		./steamcmd.sh +@sSteamCmdForcePlatformType windows +force_install_dir /home/ips-hosting +login anonymous +app_update 1892930 -beta "${BETA_BRANCH}" +quit
 	else
-		./steamcmd.sh +force_install_dir /home/ips-hosting +login anonymous +app_update 1892930 +quit
+		./steamcmd.sh +@sSteamCmdForcePlatformType windows +force_install_dir /home/ips-hosting +login anonymous +app_update 1892930 +quit
 	fi
 }
 
 function start() {
-	# TODO
-	# Replace -Xmx value in ProjectZomboid64.json
-	sed -i "s/-Xmx.*/-Xmx${MEMORY:-2048m}\",/g" /home/ips-hosting/ProjectZomboid64.json
-
-	# Workaround for 0.0.0.0 not working
-	if [ "${HOST:-0.0.0.0}" == "0.0.0.0" ]; then
-		HOST="$(hostname -I)"
+	local start_command="xvfb-run -a wine ./sbox-server.exe +game ${SBOX_GAME:-facepunch.walker facepunch.flatgrass}"
+	if [ -n "$SBOX_HOSTNAME" ]; then
+		start_command="$start_command +hostname '$SBOX_HOSTNAME'"
 	fi
-
-	local start_command="./start-server.sh -ip ${HOST} -port ${QUERY_PORT:-16261} -steamport1 ${GAME_PORT:-8766} -cachedir=/home/ips-hosting/Zomboid -servername '${SERVER_NAME:-servertest}' -adminusername '${ADMIN_USERNAME:-admin}' -adminpassword '${ADMIN_PASSWORD:-#Change_Me!}' -steamvac ${STEAM_VAC:-true}"
-	if [ "$NO_STEAM" == "true" ]; then
-		start_command="$start_command -nosteam"
-	fi
-	if [ "$DEBUG" == "true" ]; then
-		start_command="$start_command -debug"
+	if [ -n "$SBOX_STEAM_TOKEN" ]; then
+		start_command="$start_command +net_game_server_token '$SBOX_STEAM_TOKEN'"
 	fi
 
 	cd /home/ips-hosting
