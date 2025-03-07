@@ -1,7 +1,7 @@
 # We need to use the bigger Windows Server Image and can't use Windows Server Core or Nano Server,
 # because of the ARMA 3 server requirements.
 # https://docs.microsoft.com/en-us/virtualization/windowscontainers/manage-containers/container-base-images#choosing-a-base-image
-FROM mcr.microsoft.com/windows/server:ltsc2022
+FROM mcr.microsoft.com/windows/server:ltsc2022@sha256:d9362d78f9207f4421c36c641db35fb8070d46f2b06d8c05a33de17faeb86f56
 
 ENV HOST=0.0.0.0
 ENV GAME_PORT=2302
