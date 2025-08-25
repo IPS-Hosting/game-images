@@ -27,7 +27,7 @@ jobs:
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3
 
       - name: Build and push
-        uses: mr-smithers-excellent/docker-build-push@59523c638baec979a74fea99caa9e29d97e5963c # v6
+        uses: mr-smithers-excellent/docker-build-push@a4dc055191e5c80b01c04d2525d545efb5712b2b # v6
         with:
           image: ipshosting/game-${{ env.GAME }}
           registry: docker.io
