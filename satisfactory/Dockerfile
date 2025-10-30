@@ -18,5 +18,6 @@ ENV HOME=/home/ips-hosting
 
 EXPOSE 7777/udp
 EXPOSE 7777/tcp
+EXPOSE 8888/tcp
 
 ENTRYPOINT ["/bin/bash", "/ips-hosting/entrypoint.sh"]

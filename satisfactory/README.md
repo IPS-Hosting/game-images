@@ -11,9 +11,9 @@ For advanced usage, refer to https://docs.docker.com
 # Create the docker container
 docker create -it --restart always \
   --name satisfactory-server \
-  -p 15777:15777/udp \
-  -p 15000:15000/udp \
+  -p 7777:7777/tcp \
   -p 7777:7777/udp \
+  -p 8888:8888/tcp \
   ipshosting/game-satisfactory:v2
 
 # Start the server
@@ -61,8 +61,10 @@ The container is run as a non-root user by default and the user running inside t
 
 - 7777/tcp (http)
 - 7777/udp (game)
+- 8888/tcp (messaging)
 
-You can change the ports with the `PORT` environment variable. Both ports will always use the same number.
+You can change the http and game port using the `PORT` environment variable. Both ports will always use the same number.
+The messaging port can be changed using the `RELIABLE_PORT` environment variable.
 
 ## Env variables
 
