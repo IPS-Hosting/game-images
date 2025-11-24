@@ -10,7 +10,7 @@ RUN export DEBIAN_FRONTEND=noninteractive \
 	&& dpkg -i packages-microsoft-prod.deb \
 	&& rm packages-microsoft-prod.deb \
 	&& apt-get update \
-	&& apt-get install -y nodejs dotnet-sdk-6.0 \
+	&& apt-get install -y nodejs dotnet-sdk-8.0 \
 	&& npm install --global yarn \
 	&& apt-get clean && rm -rf /var/lib/apt/* /tmp/* /var/tmp/*
 
