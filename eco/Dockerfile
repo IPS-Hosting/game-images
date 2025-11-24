@@ -5,7 +5,7 @@ RUN export DEBIAN_FRONTEND=noninteractive \
 	&& useradd -m -d /home/ips-hosting -u 4711 -g 4711 ips-hosting \
 	&& apt-get update \
 	&& apt-get install -y lib32stdc++6 lib32gcc-s1 wget tar tzdata libsdl2-dev libgdiplus apt-transport-https \
-	&& wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O /tmp/packages-microsoft-prod.deb \
+	&& wget https://packages.microsoft.com/config/ubuntu/24.04/packages-microsoft-prod.deb -O /tmp/packages-microsoft-prod.deb \
 	&& dpkg -i /tmp/packages-microsoft-prod.deb \
 	&& apt-get update \
 	&& apt-get install -y aspnetcore-runtime-7.0 \
