@@ -1,4 +1,4 @@
-FROM ubuntu:22.04@sha256:ed1544e454989078f5dec1bfdabd8c5cc9c48e0705d07b678ab6ae3fb61952d2
+FROM ubuntu:24.04@sha256:c35e29c9450151419d9448b0fd75374fec4fff364a27f176fb458d472dfc9e54
 
 RUN export DEBIAN_FRONTEND=noninteractive \
     && groupadd -g 1000 ips-hosting \
