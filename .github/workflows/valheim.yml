@@ -12,7 +12,7 @@ on:
 
 env:
   GAME: valheim
-  VERSION: 2
+  VERSION: 3
   DOCKER_HUB_DESCRIPTION: "Valheim game server"
 
 jobs:

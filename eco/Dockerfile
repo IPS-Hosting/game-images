@@ -1,8 +1,8 @@
 FROM ubuntu:24.04@sha256:c35e29c9450151419d9448b0fd75374fec4fff364a27f176fb458d472dfc9e54
 
 RUN export DEBIAN_FRONTEND=noninteractive \
-	&& groupadd -g 1000 ips-hosting \
-	&& useradd -m -d /home/ips-hosting -u 1000 -g 1000 ips-hosting \
+	&& groupadd -g 4711 ips-hosting \
+	&& useradd -m -d /home/ips-hosting -u 4711 -g 4711 ips-hosting \
 	&& apt-get update \
 	&& apt-get install -y lib32stdc++6 lib32gcc-s1 wget tar tzdata libsdl2-dev libgdiplus apt-transport-https \
 	&& wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O /tmp/packages-microsoft-prod.deb \

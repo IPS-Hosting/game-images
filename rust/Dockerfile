@@ -2,8 +2,8 @@ FROM ubuntu:24.04@sha256:c35e29c9450151419d9448b0fd75374fec4fff364a27f176fb458d4
 
 # libGDI+ is required by some popular plugins like https://umod.org/plugins/sign-artist
 RUN export DEBIAN_FRONTEND=noninteractive \
-	&& groupadd -g 1000 ips-hosting \
-	&& useradd -m -d /home/ips-hosting -u 1000 -g 1000 ips-hosting \
+	&& groupadd -g 4711 ips-hosting \
+	&& useradd -m -d /home/ips-hosting -u 4711 -g 4711 ips-hosting \
 	&& apt-get update \
 	&& apt-get install -y lib32stdc++6 lib32gcc-s1 gdb wget tar tzdata libsdl2-dev \
 	&& apt-get clean \

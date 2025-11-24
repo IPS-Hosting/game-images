@@ -12,7 +12,7 @@ on:
 
 env:
   GAME: rust
-  VERSION: 3
+  VERSION: 4
   DOCKER_HUB_DESCRIPTION: "Rust game server"
 
 jobs:

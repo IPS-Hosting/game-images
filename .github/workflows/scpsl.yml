@@ -12,7 +12,7 @@ on:
 
 env:
   GAME: scpsl
-  VERSION: 2
+  VERSION: 3
   DOCKER_HUB_DESCRIPTION: "SCP: Secret Laboratory game server"
 
 jobs:

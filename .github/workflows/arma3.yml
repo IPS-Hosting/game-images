@@ -12,7 +12,7 @@ on:
 
 env:
   GAME: arma3
-  VERSION: 2
+  VERSION: 3
   DOCKER_HUB_DESCRIPTION: "ARMA III game server and headless client"
 
 jobs:
