@@ -142,14 +142,28 @@ function install_default_plugins() {
 	# Install a plugin by repo
 	function _install_plugin_repo() {
 		local repo="$1"
+		local plugin_name
+		plugin_name=$(basename "$repo")
+		
 		local url
 		url=$(_latest_jar_url "$repo")
 		if [ -z "$url" ]; then
 			echo "Warning: Could not find release JAR for $repo"
 			return
 		fi
+		
 		local filename
 		filename=$(basename "$url")
+		
+		# Check if this exact version is already installed
+		if [ -f "$mods_dir/$filename" ]; then
+			echo "Plugin $filename already installed, skipping download"
+			return
+		fi
+		
+		# Remove old versions of the plugin
+		rm -fv "$mods_dir"/*"$plugin_name"*.jar
+		
 		echo "Downloading $repo -> $filename"
 		wget -O "$mods_dir/$filename" "$url"
 	}
