@@ -9,6 +9,7 @@ Game server docker images for the following games:
 - [Counter Strike: Global Offensive](csgo/README.md)
 - [Eco](eco/README.md)
 - [Garry's Mod](gmod/README.md)
+- [Hytale](hytale/README.md)
 - [Palworld](palworld/README.md)
 - [Project: Zomboid](pz/README.md)
 - [Rust](rust/README.md)
