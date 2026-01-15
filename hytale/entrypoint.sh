@@ -6,6 +6,8 @@ set -o pipefail
 CREDENTIALS_PATH="${CREDENTIALS_PATH:-/home/ips-hosting/.hytale-downloader-credentials.json}"
 PATCHLINE="${PATCHLINE:-release}"
 SKIP_UPDATE_CHECK="${SKIP_UPDATE_CHECK:-false}"
+INSTALL_DEFAULT_PLUGINS="${INSTALL_DEFAULT_PLUGINS:-true}"
+DEFAULT_PLUGINS="${DEFAULT_PLUGINS:-webserver,query,performance-saver,prometheus}"
 
 function install_update_launcher() {
 	mkdir -vp /home/ips-hosting/hytale-launcher
@@ -116,6 +118,65 @@ function install_update_game() {
 	
 	unzip -o "/home/ips-hosting/${PATCHLINE}.zip"
 	rm "/home/ips-hosting/${PATCHLINE}.zip"
+}
+
+function install_default_plugins() {
+	# Optionally install default plugins into mods/
+	if [ "$INSTALL_DEFAULT_PLUGINS" != "true" ]; then
+		return
+	fi
+
+	local mods_dir="/home/ips-hosting/mods"
+	mkdir -p "$mods_dir"
+
+	# Helper: get latest release JAR URL for a repo
+	function _latest_jar_url() {
+		local repo="$1"
+		# Fetch latest release and pick first .jar asset URL
+		curl -s "https://api.github.com/repos/${repo}/releases/latest" \
+			| grep -Eo '"browser_download_url": "[^"]+\.jar"' \
+			| head -n 1 \
+			| cut -d '"' -f4
+	}
+
+	# Install a plugin by repo
+	function _install_plugin_repo() {
+		local repo="$1"
+		local url
+		url=$(_latest_jar_url "$repo")
+		if [ -z "$url" ]; then
+			echo "Warning: Could not find release JAR for $repo"
+			return
+		fi
+		local filename
+		filename=$(basename "$url")
+		echo "Downloading $repo -> $filename"
+		wget -O "$mods_dir/$filename" "$url"
+	}
+
+	# Parse DEFAULT_PLUGINS comma-separated list
+	IFS=',' read -ra _plugins <<< "$DEFAULT_PLUGINS"
+	for p in "${_plugins[@]}"; do
+		case "$(echo "$p" | tr '[:upper:]' '[:lower:]' | xargs)" in
+			webserver)
+				_install_plugin_repo "nitrado/hytale-plugin-webserver"
+				;;
+			query)
+				_install_plugin_repo "nitrado/hytale-plugin-query"
+				;;
+			performance-saver)
+				_install_plugin_repo "nitrado/hytale-plugin-performance-saver"
+				;;
+			prometheus)
+				_install_plugin_repo "apexhosting/hytale-plugin-prometheus"
+				;;
+			"")
+				;;
+			*)
+				echo "Warning: Unknown plugin '$p'"
+				;;
+		esac
+	done
 }
 
 function ensure_machine_id() {
@@ -308,6 +369,7 @@ start)
 	if [ "$SKIP_UPDATE_CHECK" != "true" ] && needs_update; then
 		install_update_game
 	fi
+	install_default_plugins
 	start
 	;;
 esac

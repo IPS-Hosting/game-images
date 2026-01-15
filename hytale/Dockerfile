@@ -22,7 +22,7 @@ RUN export DEBIAN_FRONTEND=noninteractive \
     && chown ips-hosting:ips-hosting /etc/machine-id \
     && chmod 644 /etc/machine-id \
     && apt-get update \
-    && apt-get install -y wget unzip \
+    && apt-get install -y wget curl unzip \
     && apt-get clean \
     && rm -rf /var/lib/apt/* /tmp/* /var/tmp/*
 
@@ -35,5 +35,6 @@ VOLUME /home/ips-hosting
 ENV HOME=/home/ips-hosting
 
 EXPOSE 5520/udp
+EXPOSE 5523/tcp
 
 ENTRYPOINT ["/bin/bash", "/ips-hosting/entrypoint.sh"]

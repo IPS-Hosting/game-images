@@ -76,8 +76,11 @@ The container is run as a non-root user by default and the user running inside t
 ## Ports
 
 - 5520/udp (game)
+- 5523/tcp (web server, provided by Nitrado WebServer plugin; defaults to game port +3)
 
 You can change the game port using the `PORT` environment variable.
+The WebServer plugin binds to `PORT + 3` on TCP by default. You can override this via `mods/Nitrado_WebServer/config.json`.
+Remember to also update the container port bindings when changing port variables.
 
 ## Env variables
 
@@ -135,6 +138,15 @@ The following env variables are always available during `start`.
 `MODS` Additional mods directories to load from.
 
 `EARLY_PLUGINS` Additional early plugin directories to load from.
+
+`INSTALL_DEFAULT_PLUGINS` Automatically install common plugins into `mods/` before starting. Defaults to `true`. When enabled, the latest release JARs of the plugins listed in `DEFAULT_PLUGINS` will be downloaded from GitHub and placed into `/home/ips-hosting/mods`.
+
+`DEFAULT_PLUGINS` Comma-separated list of default plugins to install when `INSTALL_DEFAULT_PLUGINS=true`. Defaults to `webserver,query,performance-saver,prometheus`. Supported values:
+
+- `webserver` → nitrado/hytale-plugin-webserver
+- `query` → nitrado/hytale-plugin-query
+- `performance-saver` → nitrado/hytale-plugin-performance-saver
+- `prometheus` → apexhosting/hytale-plugin-prometheus
 
 `BOOT_COMMAND` Command to execute on boot. Multiple commands can be provided and will be executed synchronously in order.
 
