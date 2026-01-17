@@ -109,6 +109,10 @@ function needs_update() {
 }
 
 function install_update_game() {
+	if ! needs_update; then
+		return
+	fi
+
 	cd /home/ips-hosting
 
 	./hytale-launcher/hytale-downloader-linux-amd64 \
@@ -381,7 +385,7 @@ start)
 *)
 	# Default: install/update launcher and game, then start
 	install_update_launcher
-	if [ "$SKIP_UPDATE_CHECK" != "true" ] && needs_update; then
+	if [ "$SKIP_UPDATE_CHECK" != "true" ]; then
 		install_update_game
 	fi
 	install_default_plugins
