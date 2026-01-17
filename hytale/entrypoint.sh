@@ -18,7 +18,7 @@ function install_update_launcher() {
 	# Install launcher if it doesn't exist
 	if [ ! -f "./hytale-downloader-linux-amd64" ]; then
 		echo "Downloading hytale-downloader..."
-		wget https://downloader.hytale.com/hytale-downloader.zip
+		wget -nv https://downloader.hytale.com/hytale-downloader.zip
 		unzip ./hytale-downloader.zip hytale-downloader-linux-amd64
 		rm hytale-downloader.zip
 		launcher_was_just_installed=true
@@ -35,7 +35,7 @@ function install_update_launcher() {
 			echo "Updating hytale-downloader..."
 			
 			# Download and install the new version
-			wget https://downloader.hytale.com/hytale-downloader.zip
+			wget -nv https://downloader.hytale.com/hytale-downloader.zip
 			unzip -o ./hytale-downloader.zip hytale-downloader-linux-amd64
 			rm hytale-downloader.zip
 			
@@ -165,7 +165,7 @@ function install_default_plugins() {
 		rm -fv "$mods_dir"/*"$plugin_name"*.jar
 		
 		echo "Downloading $repo -> $filename"
-		wget -O "$mods_dir/$filename" "$url"
+		wget -nv -O "$mods_dir/$filename" "$url"
 	}
 
 	# Parse DEFAULT_PLUGINS comma-separated list
