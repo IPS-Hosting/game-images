@@ -109,7 +109,7 @@ function needs_update() {
 }
 
 function install_update_game() {
-	if ! needs_update; then
+	if [ "$FORCE_UPDATE" != "true" ] && ! needs_update; then
 		return
 	fi
 

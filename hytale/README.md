@@ -97,6 +97,8 @@ The following env variables are available during `install_update_launcher` and `
 
 `SKIP_UPDATE_CHECK` Set to `true` to skip checking for launcher and game updates. Defaults to `false`.
 
+`FORCE_UPDATE` Set to `true` to force redownload of game files, even when already up to date. Defaults to `false`.
+
 ### start
 
 The following env variables are always available during `start`.
