@@ -378,6 +378,7 @@ install_update_launcher)
 install_update_game)
 	install_update_launcher
 	install_update_game
+	install_default_plugins
 	;;
 start)
 	start
