@@ -207,8 +207,8 @@ function ensure_machine_id() {
 	
 	local persisted_machine_id_file="/home/ips-hosting/.machine-id"
 
-	if [ ! -f "/etc/machine-id" ] || [ ! -s "/etc/machine-id" ]; then
-		if [ ! -f "$persisted_machine_id_file" ]; then
+	if [ ! -s "/etc/machine-id" ]; then
+		if [ ! -s "$persisted_machine_id_file" ]; then
 			# Generate a 32-character hex string in the correct machine-id format
 			openssl rand -hex 16 > "$persisted_machine_id_file"
 		fi
