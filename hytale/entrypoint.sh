@@ -146,8 +146,7 @@ function install_default_plugins() {
 	# Install a plugin by repo
 	function _install_plugin_repo() {
 		local repo="$1"
-		local plugin_name
-		plugin_name=$(basename "$repo")
+		local mods_dir="$2"
 		
 		local url
 		url=$(_latest_jar_url "$repo")
@@ -159,14 +158,19 @@ function install_default_plugins() {
 		local filename
 		filename=$(basename "$url")
 		
+		# Extract base name by removing version suffix (e.g., "-1.0.0.jar" or "-1.0.0-beta.1.jar" -> "")
+		local base_name
+		# Use sed -E for portability (
+		base_name=$(printf '%s' "$filename" | sed -E 's/-[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?\.jar$//')
+		
+		echo "Removing old versions of $base_name (keeping $filename)"
+		find "$mods_dir" -name "${base_name}-*.jar" ! -name "$filename" -print -delete
+		
 		# Check if this exact version is already installed
 		if [ -f "$mods_dir/$filename" ]; then
 			echo "Plugin $filename already installed, skipping download"
 			return
 		fi
-		
-		# Remove old versions of the plugin
-		rm -fv "$mods_dir"/*"$plugin_name"*.jar
 		
 		echo "Downloading $repo -> $filename"
 		wget -q -O "$mods_dir/$filename" "$url"
@@ -177,16 +181,16 @@ function install_default_plugins() {
 	for p in "${_plugins[@]}"; do
 		case "$(echo "$p" | tr '[:upper:]' '[:lower:]' | xargs)" in
 			webserver)
-				_install_plugin_repo "nitrado/hytale-plugin-webserver"
+				_install_plugin_repo "nitrado/hytale-plugin-webserver" "$mods_dir"
 				;;
 			query)
-				_install_plugin_repo "nitrado/hytale-plugin-query"
+				_install_plugin_repo "nitrado/hytale-plugin-query" "$mods_dir"
 				;;
 			performance-saver)
-				_install_plugin_repo "nitrado/hytale-plugin-performance-saver"
+				_install_plugin_repo "nitrado/hytale-plugin-performance-saver" "$mods_dir"
 				;;
 			prometheus)
-				_install_plugin_repo "apexhosting/hytale-plugin-prometheus"
+				_install_plugin_repo "apexhosting/hytale-plugin-prometheus" "$mods_dir"
 				;;
 			"")
 				;;
