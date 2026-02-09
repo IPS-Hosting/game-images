@@ -20,7 +20,7 @@ function post_update() {
 	ln -svf ../../../../../Steam/steamapps /home/ips-hosting/Engine/Binaries/ThirdParty/SteamCMD/Linux/steamapps
 
 	# Setup useful symlinks
-	ln -svf ../../Mods /home/ips-hosting/ShooterGame/Content/Mods
+	ln -svf ShooterGame/Content/Mods /home/ips-hosting/Mods
 	ln -svf ShooterGame/Saved/Config/LinuxServer/GameUserSettings.ini /home/ips-hosting/GameUserSettings.ini
 	ln -svf ShooterGame/Saved/Config/LinuxServer/Game.ini /home/ips-hosting/Game.ini
 }
