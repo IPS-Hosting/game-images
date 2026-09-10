@@ -1,4 +1,4 @@
-FROM eclipse-temurin:25 AS jre-build
+FROM eclipse-temurin:25@sha256:dcf835e52330939b6c9f90ecab8aafcbcaa8fbf48423db44de884cf978c10144 AS jre-build
 
 # Create a custom Java runtime
 RUN $JAVA_HOME/bin/jlink \
@@ -10,7 +10,7 @@ RUN $JAVA_HOME/bin/jlink \
     --compress=2 \
     --output /javaruntime
 
-FROM ubuntu:24.04
+FROM ubuntu:24.04@sha256:224a1869083a311ef3f13648a154ba79832fbef6364d31493642ca03082da254
 ENV JAVA_HOME=/opt/java/openjdk
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 COPY --from=jre-build /javaruntime $JAVA_HOME
