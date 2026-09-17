@@ -1,0 +1,5 @@
+# IPS Hosting game manifest — source of truth for this game's platform data.
+# Applied to the database via the importer in the api repo (scripts/game-import).
+apiVersion: 1
+short: valheim
+dockerImage: ipshosting/game-valheim:v3
