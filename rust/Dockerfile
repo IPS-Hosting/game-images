@@ -1,4 +1,4 @@
-FROM ubuntu:24.04@sha256:c35e29c9450151419d9448b0fd75374fec4fff364a27f176fb458d472dfc9e54
+FROM ubuntu:26.04@sha256:da6fc2be547864451aa253836dd926da33623312df4a9a243e35dc877c378a78
 
 # libGDI+ is required by some popular plugins like https://umod.org/plugins/sign-artist
 RUN export DEBIAN_FRONTEND=noninteractive \
