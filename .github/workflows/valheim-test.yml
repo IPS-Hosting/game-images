@@ -48,10 +48,17 @@ jobs:
         run: docker build -t ipshosting/game-${{ env.GAME }}:test ./${{ env.GAME }}
 
       - name: Install server files
-        run: >
-          docker run --rm
-          -v ${{ github.workspace }}/valheim-test-data:/home/ips-hosting
-          ipshosting/game-${{ env.GAME }}:test update_validate
+        run: |
+          for attempt in 1 2 3; do
+            echo "install attempt $attempt/3"
+            if docker run --rm \
+              -v ${{ github.workspace }}/valheim-test-data:/home/ips-hosting \
+              ipshosting/game-${{ env.GAME }}:test update_validate; then
+              exit 0
+            fi
+            [ "$attempt" -eq 3 ] && exit 1
+            sleep 30
+          done
 
       - name: Start server
         run: >
