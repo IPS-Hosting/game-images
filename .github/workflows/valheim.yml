@@ -41,6 +41,9 @@ jobs:
             ipshosting/game-${{ env.GAME }}:latest,
             ipshosting/game-${{ env.GAME }}:v${{ env.VERSION }}
 
+      - name: Verify published tag
+        run: docker manifest inspect ipshosting/game-${{ env.GAME }}:v${{ env.VERSION }} > /dev/null
+
       - name: Update DockerHub description
         uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5
         with:
