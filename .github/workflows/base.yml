@@ -1,4 +1,4 @@
-name: "Build Valheim"
+name: "Build Base"
 
 on:
   schedule:
@@ -8,12 +8,11 @@ on:
     branches:
       - main
     paths:
-      - "valheim/**"
+      - "base/**"
 
 env:
-  GAME: valheim
-  VERSION: 3
-  DOCKER_HUB_DESCRIPTION: "Valheim game server"
+  GAME: base
+  VERSION: 1
 
 jobs:
   build-and-deploy:
@@ -40,15 +39,3 @@ jobs:
           tags: >-
             ipshosting/game-${{ env.GAME }}:latest,
             ipshosting/game-${{ env.GAME }}:v${{ env.VERSION }}
-
-      - name: Verify published tag
-        run: docker manifest inspect ipshosting/game-${{ env.GAME }}:v${{ env.VERSION }} > /dev/null
-
-      - name: Update DockerHub description
-        uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
-          repository: ipshosting/game-${{ env.GAME }}
-          short-description: ${{ env.DOCKER_HUB_DESCRIPTION }}
-          readme-filepath: ./${{ env.GAME }}/README.md
