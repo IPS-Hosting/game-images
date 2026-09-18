@@ -17,9 +17,6 @@ on:
 
   workflow_dispatch:
 
-  schedule:
-    - cron: "0 3 * * 1"
-
 concurrency:
   group: valheim-test
   cancel-in-progress: true
@@ -41,6 +38,9 @@ jobs:
         run: docker build -t ipshosting/game-${{ env.GAME }}:test ./${{ env.GAME }}
 
   boot:
+    # Manual-only tool for quickly boot-testing games with anonymous steam
+    # downloads; scheduled/licensed-game boot validation runs against the
+    # staging game host instead.
     # GitHub-hosted runner: the only self-hosted infra is the buildkit build
     # endpoint (build-only, cannot run containers) — see charts/buildkit.
     needs: build
