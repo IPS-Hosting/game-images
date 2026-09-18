@@ -15,6 +15,11 @@ on:
       - "base/**"
       - ".github/workflows/valheim-test.yml"
 
+  workflow_dispatch:
+
+  schedule:
+    - cron: "0 3 * * 1"
+
 concurrency:
   group: valheim-test
   cancel-in-progress: true
@@ -23,11 +28,24 @@ env:
   GAME: valheim
 
 jobs:
-  boot-test:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
+
+      - name: Build base image
+        run: docker build -t ipshosting/game-base:v1 ./base
+
+      - name: Build image
+        run: docker build -t ipshosting/game-${{ env.GAME }}:test ./${{ env.GAME }}
+
+  boot:
     # GitHub-hosted runner: the only self-hosted infra is the buildkit build
     # endpoint (build-only, cannot run containers) — see charts/buildkit.
+    needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
