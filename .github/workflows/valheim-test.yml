@@ -1,0 +1,94 @@
+name: "Test Valheim"
+
+on:
+  pull_request:
+    paths:
+      - "valheim/**"
+      - "base/**"
+      - ".github/workflows/valheim-test.yml"
+
+  push:
+    branches:
+      - main
+    paths:
+      - "valheim/**"
+      - "base/**"
+      - ".github/workflows/valheim-test.yml"
+
+concurrency:
+  group: valheim-test
+  cancel-in-progress: true
+
+env:
+  GAME: valheim
+
+jobs:
+  boot-test:
+    # GitHub-hosted runner: the only self-hosted infra is the buildkit build
+    # endpoint (build-only, cannot run containers) — see charts/buildkit.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
+
+      - name: Cache server files
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: valheim-test-data
+          key: valheim-test-data-v1
+
+      - name: Fix data directory ownership
+        run: sudo mkdir -p valheim-test-data && sudo chown -R 4711:4711 valheim-test-data
+
+      - name: Build image
+        run: docker build -t ipshosting/game-${{ env.GAME }}:test ./${{ env.GAME }}
+
+      - name: Install server files
+        run: >
+          docker run --rm
+          -v ${{ github.workspace }}/valheim-test-data:/home/ips-hosting
+          ipshosting/game-${{ env.GAME }}:test update_validate
+
+      - name: Start server
+        run: >
+          docker run -d --name ${{ env.GAME }}-test
+          -v ${{ github.workspace }}/valheim-test-data:/home/ips-hosting
+          -e PASSWORD=harness-test-password
+          -e NAME="Harness Test Server"
+          -e PUBLIC=0
+          -e GAME_PORT=2456
+          ipshosting/game-${{ env.GAME }}:test start
+
+      - name: Wait for ready
+        run: |
+          for i in $(seq 1 60); do
+            if docker logs ${{ env.GAME }}-test 2>&1 | grep -q "DungeonDB Start"; then
+              echo "server is ready"
+              exit 0
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' ${{ env.GAME }}-test 2>/dev/null)" != "true" ]; then
+              docker logs ${{ env.GAME }}-test
+              echo "server exited before becoming ready"
+              exit 1
+            fi
+            sleep 5
+          done
+          docker logs ${{ env.GAME }}-test
+          echo "server did not become ready in time"
+          exit 1
+
+      - name: Stop server and verify clean exit
+        run: |
+          docker stop ${{ env.GAME }}-test
+          code=$(docker inspect -f '{{.State.ExitCode}}' ${{ env.GAME }}-test)
+          docker rm ${{ env.GAME }}-test
+          if [ "$code" != "0" ] && [ "$code" != "143" ] && [ "$code" != "137" ]; then
+            echo "unexpected exit code: $code"
+            exit 1
+          fi
+          echo "clean exit: $code"
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f ${{ env.GAME }}-test || true
