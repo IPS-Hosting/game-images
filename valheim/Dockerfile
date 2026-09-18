@@ -1,4 +1,4 @@
-FROM ipshosting/base:v1
+FROM ipshosting/game-base:v1
 
 # apt needs root; base image ends with USER ips-hosting (restored after this layer)
 USER root

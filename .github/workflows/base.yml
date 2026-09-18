@@ -37,5 +37,5 @@ jobs:
           context: ./${{ env.GAME }}
           push: true
           tags: >-
-            ipshosting/${{ env.GAME }}:latest,
-            ipshosting/${{ env.GAME }}:v${{ env.VERSION }}
+            ipshosting/game-${{ env.GAME }}:latest,
+            ipshosting/game-${{ env.GAME }}:v${{ env.VERSION }}
