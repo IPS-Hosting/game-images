@@ -41,6 +41,9 @@ jobs:
       - name: Fix data directory ownership
         run: sudo mkdir -p valheim-test-data && sudo chown -R 4711:4711 valheim-test-data
 
+      - name: Build base image
+        run: docker build -t ipshosting/game-base:v1 ./base
+
       - name: Build image
         run: docker build -t ipshosting/game-${{ env.GAME }}:test ./${{ env.GAME }}
 
