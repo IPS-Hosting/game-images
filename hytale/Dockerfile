@@ -10,7 +10,7 @@ RUN $JAVA_HOME/bin/jlink \
     --compress=2 \
     --output /javaruntime
 
-FROM ubuntu:24.04
+FROM ubuntu:26.04@sha256:3595d7fc4286a33fad0fd853a4063e654287a9c3787437d7937c94ca3f7a804e
 ENV JAVA_HOME=/opt/java/openjdk
 ENV PATH="${JAVA_HOME}/bin:${PATH}"
 COPY --from=jre-build /javaruntime $JAVA_HOME
