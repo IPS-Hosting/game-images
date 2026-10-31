@@ -1,0 +1,119 @@
+# IPS Hosting game manifest v2 — minecraft. External image (itzg) installs itself:
+# install kind "none", dynamic image tag via go-template, computed env (JVM heap from
+# box RAM), GameSpy4 query with TCP server-list-ping fallback (type/version matrix, spec §7).
+apiVersion: 2
+
+short: minecraft
+name: Minecraft
+description: |
+  Dein eigener **Minecraft** Server von IPS Hosting:
+
+  * Vanilla, Paper, Spigot, Forge, Fabric, Modpacks und mehr
+  * Volle Kontrolle über server.properties über das Webinterface
+  * Automatische Updates und Backups
+image: https://a.storyblok.com/f/74037/940x529/f9ad76ee36/minecraft.jpg
+tags: [sandbox, survival, crafting, moddable, creative]
+consoleCommandsEnabled: true
+
+runtime:
+  # Dynamic tag: javaVersion setting -> itzg tag. Plain go-template if/else, no special-casing.
+  image: >-
+    itzg/minecraft-server:{{ if eq (.Setting "javaVersion") "STABLE" }}stable{{ else if eq (.Setting "javaVersion") "LATEST" }}latest{{ else }}java{{ .Setting "javaVersion" }}{{ end }}
+  dataPath: /data                            # external image contract (itzg)
+
+install:
+  kind: none                                 # itzg installs/updates at startup; ipsd skips install sidecars
+
+env:                                         # itzg env contract, rendered per game server
+  EULA: '{{ .SettingBool "eula" | bool }}'
+  GUI: "FALSE"
+  LOG_TIMESTAMP: "true"
+  OVERRIDE_SERVER_PROPERTIES: "true"
+  SERVER_IP: 0.0.0.0
+  SERVER_PORT: '{{ (.Port "game").Container }}'
+  RCON_PORT: '{{ (.Port "rcon").Container }}'
+  QUERY_PORT: '{{ (.Port "query").Container }}'
+  ENABLE_QUERY: "true"
+  ENABLE_RCON: "true"
+  VERSION: '{{ .Setting "minecraftVersion" }}'
+  TYPE: '{{ .Setting "type" }}'
+  MOTD: '{{ .Setting "motd" }}'
+  DIFFICULTY: '{{ .Setting "difficulty" }}'
+  MODE: '{{ .Setting "gameMode" }}'
+  MAX_PLAYERS: '{{ .Setting "maxPlayers" }}'
+  VIEW_DISTANCE: '{{ .Setting "viewDistance" }}'
+  SIMULATION_DISTANCE: '{{ .Setting "simulationDistance" }}'
+  SPAWN_PROTECTION: '{{ .Setting "spawnProtection" }}'
+  LEVEL: '{{ .Setting "level" }}'
+  SEED: '{{ .Setting "levelSeed" }}'
+  LEVEL_TYPE: '{{ .Setting "levelType" }}'
+  ONLINE_MODE: '{{ .SettingBool "onlineMode" | bool }}'
+  ENABLE_WHITELIST: '{{ .SettingBool "whitelist" | bool }}'
+  USE_AIKAR_FLAGS: '{{ .SettingBool "useAikarFlag" | bool }}'
+  # JVM heap: maxHeap = box RAM - system reserve (2048MB >= 10GB box, else 1024MB);
+  # init heap = maxHeap * initHeapMemoryPercentage / 100 (integer math; see spec §template).
+  MAX_MEMORY: '{{ printf "%dM" (sub .Server.RamMB (ternary 2048 1024 (ge .Server.RamMB 10240))) }}'
+  INIT_MEMORY: >-
+    {{ printf "%dM" (div (mul (sub .Server.RamMB (ternary 2048 1024 (ge .Server.RamMB 10240)))
+    (intf (.Setting "initHeapMemoryPercentage"))) 100) }}
+
+args: []                                     # itzg entrypoint owns the command line
+
+stop:
+  via: docker                                # itzg handles SIGTERM gracefully
+  timeoutSeconds: 30
+
+query:
+  # Minecraft type/version matrix (see spec §7): GameSpy4 UDP primary, TCP SLP fallback.
+  protocol: minecraft
+  port: query                                # GameSpy4 UDP (enable-query=true via env)
+  fallbackPort: game                         # TCP server-list ping fallback
+
+ports:
+  - { identifier: game,  protocol: TCP, default: 25565, group: 1 }
+  - { identifier: query, protocol: UDP, default: 25565, group: 1 }   # same group as game: equal ports
+  - { identifier: rcon,  protocol: TCP, default: 25575, group: 2 }
+
+settings:
+  - { key: eula,         name: EULA akzeptiert,            type: BOOLEAN, sortOrder: 5,  category: Allgemein, default: '0' }
+  - { key: javaVersion,  name: Java-Version,               type: STRINGENUM, sortOrder: 10, category: Allgemein,
+      values: ['8', '11', '16', '17', '17-graalvm', '21', '21-graalvm', '25', '25-graalvm', 'STABLE', 'LATEST'], default: '21' }
+  - { key: type,         name: Servertyp,                  type: STRINGENUM, sortOrder: 20, category: Allgemein,
+      values: [VANILLA, PAPER, SPIGOT, FORGE, FABRIC, NEOFORGE, QUILT, CURSEFORGE, MODRINTH], default: PAPER }
+  - { key: minecraftVersion, name: Minecraft-Version,      type: STRING, sortOrder: 30, category: Allgemein }
+  - { key: motd,         name: Server-Beschreibung (MOTD), type: STRING, sortOrder: 40, category: Allgemein, default: 'Ein Minecraft Server von IPS Hosting' }
+  - { key: difficulty,   name: Schwierigkeit,              type: STRINGENUM, sortOrder: 40, category: Server Properties,
+      values: [peaceful, easy, normal, hard], default: normal }
+  - { key: gameMode,     name: Spielmodus,                 type: STRINGENUM, sortOrder: 40, category: Allgemein,
+      values: [survival, creative, adventure, spectator], default: survival }
+  - { key: maxPlayers,   name: Maximale Spieler,           type: NUMBER, sortOrder: 50, category: Allgemein, default: '20', validation: 'numeric|min:1' }
+  - { key: viewDistance, name: Sichtweite,                 type: NUMBER, sortOrder: 60, category: Allgemein, default: '10', validation: 'numeric|min:3|max:32' }
+  - { key: simulationDistance, name: Simulationsdistanz,   type: NUMBER, sortOrder: 60, category: Allgemein, default: '10', validation: 'numeric|min:5|max:40' }
+  - { key: level,        name: Weltname,                   type: STRING, sortOrder: 60, category: Allgemein, default: world }
+  - { key: levelSeed,    name: Welt-Seed,                  type: STRING, sortOrder: 60, category: Allgemein }
+  - { key: levelType,    name: Welttyp,                    type: STRINGENUM, sortOrder: 60, category: Allgemein,
+      values: [default, flat, large_biomes, amplified], default: 'minecraft:normal' }
+  - { key: onlineMode,   name: Online-Mode (Nur lizenzierte Spieler), type: BOOLEAN, sortOrder: 60, category: Allgemein, default: '1' }
+  - { key: whitelist,    name: Whitelist aktivieren,       type: BOOLEAN, sortOrder: 60, category: Allgemein, default: '0' }
+  - { key: spawnProtection, name: Spawn-Schutz (Blöcke),   type: NUMBER, sortOrder: 60, category: Allgemein, default: '16', validation: 'numeric|min:0' }
+  - { key: useAikarFlag, name: Aikar-Optimierte JVM-Flags, type: BOOLEAN, sortOrder: 70, category: Allgemein, default: '0' }
+  - { key: initHeapMemoryPercentage, name: Initiale JVM-Heap-Größe (%), type: STRING, sortOrder: 80, category: Allgemein,
+      default: '33.33', validation: 'numeric|min:0|max:100' }
+
+filePermissions: []                          # the image manages its own files
+
+workshop: null
+curseforge:
+  gameId: 432
+
+flags:
+  renderLogo: false
+  steamConnect: false
+  showMap: false
+  showPlayerCount: true
+  installable: false                         # self-installing image -> panel hides the install button
+
+requirements:
+  minCpuThreads: 1
+  minRam: 1024
+  minDiskspace: 10
