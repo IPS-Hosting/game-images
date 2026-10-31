@@ -1,4 +1,4 @@
-FROM ubuntu:24.04@sha256:c35e29c9450151419d9448b0fd75374fec4fff364a27f176fb458d472dfc9e54
+FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
 
 # mono-runtime is required by SCP:SL
 # libGDI+ is required by some popular plugins like https://umod.org/plugins/sign-artist
