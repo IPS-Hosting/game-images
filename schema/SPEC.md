@@ -36,7 +36,8 @@ games are migrated to manifests later (out of scope here).
 | `apiVersion` | int | ✔ | MUST be `2`. Importers reject other values. |
 | `short` | string | ✔ | `^[a-z0-9]{1,32}$`, unique platform-wide, = directory name. The universal key (DB, GraphQL, daemon). |
 | `name` | string | ✔ | German display name, ≤64 chars. |
-| `description` | string | ✔ | German markdown for the landing page (rendered server-side, no raw HTML). |
+| `description` | string\|null | – | **Factual** German game description — no marketing (platform framing belongs to the landing template). Null = sync fills from Steam (short_description, `l=german`) when `steamAppId` is set. |
+| `steamAppId` | int\|null | – | Steam app id of the **main game** (store page), not the dedicated server (`install.steam.appId`). Derives the store link; enables description/homepage enrichment in the sync. |
 | `image` | string\|null | – | Logo/cover URL (Storyblok). Nullable. |
 | `tags` | string[] | – | 0–6 tags from the controlled vocabulary (schema `$defs.tag`, Steam-inspired, ~24 values). Name search is the primary discovery mechanism; the list is extended deliberately, never per-game. |
 | `consoleCommandsEnabled` | bool | – | Gates console command input and `SEND_COMMAND` cron jobs (existing `Game` column). |
@@ -267,6 +268,11 @@ Two layers, same rules:
   defaults change.
 - `image: null` leaves the existing DB image untouched (catalog images are curated in
   Storyblok; the manifest only overrides when a URL is set).
+- Description enrichment: a manifest without `description` but with `steamAppId` gets its
+  description filled once from the Steam appdetails endpoint (short_description, `l=german`);
+  an existing DB description is never overwritten by Steam. The store link derives from
+  `steamAppId` (`store.steampowered.com/app/<id>`) — no homepage/store-page URL fields exist
+  in the manifest.
 
 ## 11. CI (game-images)
 

@@ -99,6 +99,20 @@ for (const { dir, file } of manifests) {
   // All template strings in the manifest.
   const templates = collectStrings(manifest).filter((s) => s.includes('{{'));
 
+  // Template action whitelist (spec §4): every identifier inside {{ ... }} must be context,
+  // a whitelisted function or a go template keyword — anything else would fail loud at
+  // runtime; catch it in CI.
+  for (const t of templates) {
+    for (const action of t.matchAll(/\{\{([\s\S]*?)\}\}/g)) {
+      const code = action[1].replace(QUOTED, ' ');
+      for (const m of code.matchAll(IDENT)) {
+        if (!TEMPLATE_IDENTIFIERS.has(m[0])) {
+          error(rel, `template uses unsupported identifier "${m[0]}": ${action[1].trim().slice(0, 80)}`);
+        }
+      }
+    }
+  }
+
   // Port references: .Port "id" and explicit port identifiers.
   for (const t of templates) {
     for (const m of t.matchAll(/\.Port\s+(?:"([^"]+)"|'([^']+)')/g)) {
@@ -114,7 +128,12 @@ for (const { dir, file } of manifests) {
   if (manifest.stop?.port) refPort(manifest.stop.port, 'stop.port');
 
   // Setting references.
-  const settingKeys = new Set((manifest.settings ?? []).map((s) => s.key));
+  const seenSettings = new Set();
+  for (const setting of manifest.settings ?? []) {
+    if (seenSettings.has(setting.key)) error(rel, `duplicate setting key "${setting.key}"`);
+    seenSettings.add(setting.key);
+  }
+  const settingKeys = seenSettings;
   for (const t of templates) {
     for (const m of t.matchAll(/\.Setting(Bool|Int|List)?\s+(?:"([^"]+)"|'([^']+)')/g)) {
       const key = m[2] ?? m[3];

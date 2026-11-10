@@ -6,11 +6,8 @@ apiVersion: 2
 
 short: palworld
 name: Palworld
-description: |
-  Dein eigener **Palworld** Server von IPS Hosting:
-
-  * Dedizierte Performance, Crash-Protection
-  * Automatische Updates und Backups
+description: null                             # filled by the sync from Steam (steamAppId)
+steamAppId: 1623730                           # store app id of the game (server app id: install.steam.appId)
 image: null                                  # existing catalog image is kept; set a URL to override
 tags: [survival, open-world, co-op, crafting, pvp]
 consoleCommandsEnabled: true
@@ -52,7 +49,7 @@ config:
   - path: Pal/Saved/Config/LinuxServer/PalWorldSettings.ini
     format: template
     template: |
-      [/Script/Engine.GameSessionSettings]
+      [/Script/Pal.PalGameWorldSettings]
       OptionSettings=(ServerName="{{ .Setting "serverName" }}",ServerPassword="{{ .Setting "serverPassword" }}",AdminPassword="{{ .Setting "adminPassword" }}",ServerPlayerMaxNum="{{ .Setting "slots" }}",EnableNonRestrictiveServerCommands=True,RCONEnabled=True,RCONPort={{ (.Port "rcon").Container }},PublicPort={{ (.Port "game").Exposed }},bIsUseBackupSaveData=True)
 
 stop:
@@ -72,12 +69,12 @@ query:
 
 ports:
   - { identifier: game, protocol: UDP, default: 8211,  group: 1 }
-  - { identifier: rcon, protocol: UDP, default: 25575, group: 2 }
+  - { identifier: rcon, protocol: TCP, default: 25575, group: 2 }
 
 settings:
-  - { key: serverName,            name: Servername,              type: STRING,       sortOrder: 10, category: Allgemein, default: 'Ein Palworld Server von IPS Hosting' }
-  - { key: serverPassword,        name: Server-Passwort,         type: HIDDENSTRING, sortOrder: 20, category: Allgemein }
-  - { key: adminPassword,         name: Admin-Passwort (RCON),   type: HIDDENSTRING, sortOrder: 30, category: Allgemein }
+  - { key: serverName,            name: Servername,              type: STRING,       sortOrder: 10, category: Allgemein, default: 'Ein Palworld Server von IPS Hosting', validation: 'regex:^[^"\\\r\n]*$' }
+  - { key: serverPassword,        name: Server-Passwort,         type: HIDDENSTRING, sortOrder: 20, category: Allgemein, validation: 'regex:^[^"\\\r\n]*$' }
+  - { key: adminPassword,         name: Admin-Passwort (RCON),   type: HIDDENSTRING, sortOrder: 30, category: Allgemein, validation: 'regex:^[^"\\\r\n]*$' }
   - { key: slots,                 name: Maximale Spieler,        type: NUMBER, sortOrder: 40, category: Allgemein, default: '32', validation: 'numeric|min:1|max:128' }
   - { key: enableCommunityServer, name: Community-Server (Öffentliche Lobby), type: BOOLEAN, sortOrder: 50, category: Allgemein, default: '0' }
   - { key: betaBranch,            name: Beta Branch,             type: STRING, sortOrder: 10, category: Steam Beta Branch }

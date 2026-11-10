@@ -5,7 +5,7 @@
   "description": "Declarative definition of a game on the IPS Hosting platform. Source of truth for the api game-data sync and the ipsd generic game engine. Product-independent: no pricing fields.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["apiVersion", "short", "name", "description", "runtime", "install", "ports", "settings", "flags"],
+  "required": ["apiVersion", "short", "name", "runtime", "install", "ports", "settings", "flags"],
   "properties": {
     "apiVersion": { "const": 2 },
 
@@ -21,10 +21,16 @@
       "description": "Display name (German marketing name, e.g. 'ARK: Survival Evolved')."
     },
     "description": {
-      "type": "string",
+      "type": ["string", "null"],
       "minLength": 1,
       "maxLength": 20000,
-      "description": "German markdown description rendered on the game's landing page."
+      "description": "Factual German description of the game — no marketing; platform framing ('Dein eigener Server ...') belongs to the landing page template, not to this data. Null = the api sync fills the description from the Steam store (short_description, l=german) when steamAppId is set."
+    },
+    "steamAppId": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "maximum": 2147483647,
+      "description": "Steam app id of the main game (store page), not of the dedicated server (that is install.steam.appId). Derives the store link and enables description/homepage enrichment in the sync. Null = game is not on Steam."
     },
     "image": {
       "type": ["string", "null"],
@@ -54,9 +60,9 @@
     },
     "env": {
       "type": "object",
-      "propertyNames": { "pattern": "^[A-Z][A-Z0-9_]*$" },
+      "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_]*$" },
       "additionalProperties": { "$ref": "#/$defs/template" },
-      "description": "Environment variables for the runtime container. TZ and HOME are reserved (set by ipsd)."
+      "description": "Environment variables for the runtime container. Case-sensitive names (mixed case like SteamAppId is allowed). TZ and HOME are reserved (set by ipsd)."
     },
     "config": {
       "type": "array",
@@ -252,6 +258,7 @@
         },
         "values": {
           "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/template" },
           "description": "Managed keys: target key (dot-notation for nested formats) -> value template. Ignored for format template."
         },
         "template": {
@@ -298,11 +305,11 @@
       },
       "allOf": [
         {
-          "if": { "properties": { "via": { "enum": ["stdin", "rcon"] } } },
+          "if": { "properties": { "via": { "enum": ["stdin", "rcon"] } }, "required": ["via"] },
           "then": { "required": ["command"] }
         },
         {
-          "if": { "properties": { "via": { "const": "rcon" } } },
+          "if": { "properties": { "via": { "const": "rcon" } }, "required": ["via"] },
           "then": { "required": ["port", "passwordSetting"] }
         }
       ]
@@ -336,15 +343,15 @@
       },
       "allOf": [
         {
-          "if": { "properties": { "protocol": { "enum": ["a2s", "minecraft", "rcon", "http"] } } },
+          "if": { "properties": { "protocol": { "enum": ["a2s", "minecraft", "rcon", "http"] } }, "required": ["protocol"] },
           "then": { "required": ["port"] }
         },
         {
-          "if": { "properties": { "protocol": { "const": "rcon" } } },
+          "if": { "properties": { "protocol": { "const": "rcon" } }, "required": ["protocol"] },
           "then": { "required": ["command", "pattern", "passwordSetting"] }
         },
         {
-          "if": { "properties": { "protocol": { "const": "http" } } },
+          "if": { "properties": { "protocol": { "const": "http" } }, "required": ["protocol"] },
           "then": { "required": ["http"] }
         }
       ]
