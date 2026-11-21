@@ -1,0 +1,98 @@
+# IPS Hosting game manifest — source of truth for platform data (api game-data sync,
+# ipsd generic game engine). Schema: schema/game-manifest.v2.json.
+apiVersion: 2
+
+short: valheim
+name: Valheim
+description: null                             # filled by the sync from Steam (steamAppId)
+steamAppId: 892970                            # store app id of the game (server app id: install.steam.appId)
+image: https://a.storyblok.com/f/74037/762x300/fbbf77a904/logo_valheim.png
+tags: [survival, open-world, co-op, crafting, pvp]
+consoleCommandsEnabled: true
+
+runtime:
+  image: ipshosting/game-steam:v1          # dumb image: base + steam runtime libs, no entrypoint logic
+  # dataPath defaults to /home/ips-hosting
+
+env:                                         # required runtime setup (formerly in the launcher script)
+  LD_LIBRARY_PATH: /home/ips-hosting/linux64
+  SteamAppId: '892970'
+
+install:
+  kind: steam
+  steam:
+    appId: 896660
+    login: anonymous
+    betaBranchSetting: betaBranch
+    betaPasswordSetting: betaPassword
+
+args:                                      # ipsd execs this argv directly — no shell, no eval
+  - ./valheim_server.x86_64
+  - -port
+  - '{{ (.Port "game").Container }}'
+  - -name
+  - '{{ .Setting "name" }}'
+  - -world
+  - '{{ .Setting "world" }}'
+  - -password
+  - '{{ .Setting "password" }}'
+  - -savedir
+  - /home/ips-hosting/data
+  - -public
+  - '{{ .Setting "public" | boolInt }}'
+  - -saveinterval
+  - '{{ .Setting "saveInterval" }}'
+  - -backups
+  - '{{ .Setting "backups" }}'
+  - -backupshort
+  - '{{ .Setting "backupShort" }}'
+  - -backuplong
+  - '{{ .Setting "backupLong" }}'
+  - arg: -crossplay                         # conditional flag: emitted only when truthy
+    when: '{{ .Setting "crossplay" }}'
+
+# env: not needed — everything is argv. Reserved vars (TZ, HOME) are always set by ipsd.
+
+stop:
+  via: docker                               # no graceful stop command; docker stop (SIGTERM -> SIGKILL)
+  timeoutSeconds: 10
+
+query:
+  protocol: a2s
+  port: query
+
+ports:
+  - { identifier: game,  protocol: UDP, default: 2456, group: 1 }
+  - { identifier: query, protocol: UDP, default: 2457, group: 1 }   # same group: stays game+1
+
+settings:
+  - { key: name,        name: Servername,        type: STRING,  sortOrder: 10, category: Allgemein, default: 'Mein Valheim Server' }
+  - { key: world,       name: Welt,              type: STRING,  sortOrder: 20, category: Allgemein, default: Dedicated }
+  - { key: password,    name: Server-Passwort,   type: HIDDENSTRING, sortOrder: 30, category: Allgemein, default: geheim, validation: 'min:5' }
+  - { key: public,      name: Öffentlicher Server, type: BOOLEAN, sortOrder: 30, category: Allgemein, default: '1' }
+  - { key: crossplay,   name: Crossplay,         type: BOOLEAN, sortOrder: 40, category: Allgemein, default: '0' }
+  - { key: saveInterval, name: Speicherintervall (Sekunden), type: NUMBER, sortOrder: 50, category: Allgemein, default: '1800', validation: 'numeric|min:60' }
+  - { key: backups,     name: Anzahl Backups,    type: NUMBER,  sortOrder: 60, category: Allgemein, default: '4', validation: 'numeric|min:1' }
+  - { key: backupShort, name: Kurzes Backup-Intervall (Sekunden), type: NUMBER, sortOrder: 70, category: Allgemein, default: '7200', validation: 'numeric|min:60' }
+  - { key: backupLong,  name: Langes Backup-Intervall (Sekunden), type: NUMBER, sortOrder: 80, category: Allgemein, default: '43200', validation: 'numeric|min:60' }
+  - { key: betaBranch,   name: Beta Branch,        type: STRING,      sortOrder: 10, category: Steam Beta Branch }
+  - { key: betaPassword, name: Beta Branch Passwort, type: HIDDENSTRING, sortOrder: 20, category: Steam Beta Branch }
+
+filePermissions:
+  - { match: /valheim_server.x86_64, allowWrite: false, priority: 10 }
+  - { match: /start.sh, allowWrite: false, priority: 10 }
+
+workshop: null
+curseforge: null
+
+flags:
+  renderLogo: true        # transparent logo -> object-contain in the panel
+  steamConnect: false
+  showMap: false
+  showPlayerCount: true
+  installable: true
+
+requirements:              # Gamebox gate; optional — empty allowed until measured
+  minCpuThreads: 1
+  minRam: 2048             # MB
+  minDiskspace: 6          # GB

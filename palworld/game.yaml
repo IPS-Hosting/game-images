@@ -1,0 +1,99 @@
+# IPS Hosting game manifest v2 — palworld. Conditional argv (object form with `when`),
+# server context (public IP/port), RCON query + RCON stop, HIDDENSTRING password rendered
+# into the config via the template escape hatch (PalWorldSettings.ini is a one-line tuple —
+# the structured ini adapter cannot express it, which is what `format: template` is for).
+apiVersion: 2
+
+short: palworld
+name: Palworld
+description: null                             # filled by the sync from Steam (steamAppId)
+steamAppId: 1623730                           # store app id of the game (server app id: install.steam.appId)
+image: null                                  # existing catalog image is kept; set a URL to override
+tags: [survival, open-world, co-op, crafting, pvp]
+consoleCommandsEnabled: true
+
+runtime:
+  image: ipshosting/game-steam:v1
+
+install:
+  kind: steam
+  steam:
+    appId: 2394010
+    login: anonymous
+    betaBranchSetting: betaBranch
+    betaPasswordSetting: betaPassword
+
+args:
+  - ./Pal/Binaries/Linux/PalServer-Linux-Shipping
+  - Pal
+  - -port
+  - '{{ (.Port "game").Container }}'
+  - -players
+  - '{{ .Setting "slots" }}'
+  - -logformat
+  - text
+  - -publicip
+  - '{{ .Server.IPv4 }}'
+  - -publicport
+  - '{{ (.Port "game").Exposed }}'
+  - arg: -publiclobby
+    when: '{{ .Setting "enableCommunityServer" }}'
+  - arg: -useperfthreads
+    when: '{{ ternary "1" "" (ge .Server.CpuThreads 2.0) }}'
+  - arg: -NoAsyncLoadingThread
+    when: '{{ ternary "1" "" (ge .Server.CpuThreads 2.0) }}'
+  - arg: -UseMultithreadForDS
+    when: '{{ ternary "1" "" (ge .Server.CpuThreads 2.0) }}'
+
+config:
+  - path: Pal/Saved/Config/LinuxServer/PalWorldSettings.ini
+    format: template
+    template: |
+      [/Script/Pal.PalGameWorldSettings]
+      OptionSettings=(ServerName="{{ .Setting "serverName" }}",ServerPassword="{{ .Setting "serverPassword" }}",AdminPassword="{{ .Setting "adminPassword" }}",ServerPlayerMaxNum="{{ .Setting "slots" }}",EnableNonRestrictiveServerCommands=True,RCONEnabled=True,RCONPort={{ (.Port "rcon").Container }},PublicPort={{ (.Port "game").Exposed }},bIsUseBackupSaveData=True)
+
+stop:
+  via: rcon
+  command: DoExit
+  port: rcon
+  passwordSetting: adminPassword             # HIDDENSTRING setting, rendered into the ini above
+  timeoutSeconds: 10
+
+query:
+  protocol: rcon
+  port: rcon
+  passwordSetting: adminPassword
+  command: Info
+  pattern: 'Welcome to Pal Server\[v(.*?)] (.*)'
+  nameGroup: 2                               # group 1 = version, group 2 = server name
+
+ports:
+  - { identifier: game, protocol: UDP, default: 8211,  group: 1 }
+  - { identifier: rcon, protocol: TCP, default: 25575, group: 2 }
+
+settings:
+  - { key: serverName,            name: Servername,              type: STRING,       sortOrder: 10, category: Allgemein, default: 'Ein Palworld Server von IPS Hosting', validation: 'regex:^[^"\\\r\n]*$' }
+  - { key: serverPassword,        name: Server-Passwort,         type: HIDDENSTRING, sortOrder: 20, category: Allgemein, validation: 'regex:^[^"\\\r\n]*$' }
+  - { key: adminPassword,         name: Admin-Passwort (RCON),   type: HIDDENSTRING, sortOrder: 30, category: Allgemein, validation: 'regex:^[^"\\\r\n]*$' }
+  - { key: slots,                 name: Maximale Spieler,        type: NUMBER, sortOrder: 40, category: Allgemein, default: '32', validation: 'numeric|min:1|max:128' }
+  - { key: enableCommunityServer, name: Community-Server (Öffentliche Lobby), type: BOOLEAN, sortOrder: 50, category: Allgemein, default: '0' }
+  - { key: betaBranch,            name: Beta Branch,             type: STRING, sortOrder: 10, category: Steam Beta Branch }
+  - { key: betaPassword,          name: Beta Branch Passwort,    type: HIDDENSTRING, sortOrder: 20, category: Steam Beta Branch }
+
+filePermissions:
+  - { match: /Pal/Binaries/**, allowWrite: false, priority: 10 }
+
+workshop: null
+curseforge: null
+
+flags:
+  renderLogo: false
+  steamConnect: false
+  showMap: false
+  showPlayerCount: true
+  installable: true
+
+requirements:
+  minCpuThreads: 2
+  minRam: 8192
+  minDiskspace: 8

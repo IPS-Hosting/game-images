@@ -1,0 +1,495 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/IPS-Hosting/game-images/main/schema/game-manifest.v2.json",
+  "title": "IPS Hosting game manifest (apiVersion 2)",
+  "description": "Declarative definition of a game on the IPS Hosting platform. Source of truth for the api game-data sync and the ipsd generic game engine. Product-independent: no pricing fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "short", "name", "runtime", "install", "ports", "settings", "flags"],
+  "properties": {
+    "apiVersion": { "const": 2 },
+
+    "short": {
+      "type": "string",
+      "pattern": "^[a-z0-9]{1,32}$",
+      "description": "Platform-wide unique game key. Must equal the manifest's directory name."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Display name (German marketing name, e.g. 'ARK: Survival Evolved')."
+    },
+    "description": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 20000,
+      "description": "Factual German description of the game — no marketing; platform framing ('Dein eigener Server ...') belongs to the landing page template, not to this data. Null = the api sync fills the description from the Steam store (short_description, l=german) when steamAppId is set."
+    },
+    "steamAppId": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "maximum": 2147483647,
+      "description": "Steam app id of the main game (store page), not of the dedicated server (that is install.steam.appId). Derives the store link and enables description/homepage enrichment in the sync. Null = game is not on Steam."
+    },
+    "image": {
+      "type": ["string", "null"],
+      "format": "uri",
+      "maxLength": 512,
+      "description": "Game logo/cover URL (Storyblok). Nullable."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/tag" },
+      "uniqueItems": true,
+      "maxItems": 6,
+      "description": "Discovery tags from the controlled vocabulary. Name search is the primary discovery mechanism."
+    },
+    "consoleCommandsEnabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether console command input (and SEND_COMMAND cron jobs) are offered for this game."
+    },
+
+    "runtime": { "$ref": "#/$defs/runtime" },
+    "install": { "$ref": "#/$defs/install" },
+    "args": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/argItem" },
+      "description": "Server command line, assembled by ipsd as exec argv (no shell)."
+    },
+    "env": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_]*$" },
+      "additionalProperties": { "$ref": "#/$defs/template" },
+      "description": "Environment variables for the runtime container. Case-sensitive names (mixed case like SteamAppId is allowed). TZ and HOME are reserved (set by ipsd)."
+    },
+    "config": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/configFile" },
+      "description": "Config files rendered into the data volume before every start."
+    },
+    "stop": { "$ref": "#/$defs/stop" },
+    "query": { "$ref": "#/$defs/query" },
+    "ports": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/port" }
+    },
+    "settings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/setting" }
+    },
+    "filePermissions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/filePermission" }
+    },
+    "workshop": {
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/workshop" }],
+      "description": "Generic steam workshop integration (null = unsupported)."
+    },
+    "curseforge": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["gameId"],
+          "properties": {
+            "gameId": { "type": "integer", "minimum": 1 }
+          }
+        }
+      ],
+      "description": "CurseForge integration (null = unsupported)."
+    },
+    "flags": { "$ref": "#/$defs/flags" },
+    "requirements": { "$ref": "#/$defs/requirements" }
+  },
+
+  "$defs": {
+    "template": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "Go text/template evaluated by ipsd with the restricted manifest context (see spec §Template engine)."
+    },
+
+    "tag": {
+      "enum": [
+        "action", "adventure", "building", "co-op", "crafting", "creative", "fantasy",
+        "fps", "horror", "management", "moddable", "open-world", "pve", "pvp", "racing",
+        "relaxing", "rpg", "sandbox", "scifi", "shooter", "simulation", "strategy",
+        "survival", "zombie"
+      ],
+      "description": "Controlled vocabulary, modeled on Steam tags. Extended deliberately, never per-game."
+    },
+
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["image"],
+      "properties": {
+        "image": {
+          "$ref": "#/$defs/template",
+          "description": "Container image reference. May be a go-template (dynamic tags, external registries). Rendered output must match the image-reference pattern."
+        },
+        "dataPath": {
+          "type": "string",
+          "default": "/home/ips-hosting",
+          "pattern": "^/[a-zA-Z0-9._/-]*$",
+          "description": "Mount point of the server's persistent data volume inside the container. Our images use /home/ips-hosting; external images may differ (itzg: /data)."
+        }
+      }
+    },
+
+    "install": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "enum": ["steam", "none", "archive"],
+          "description": "steam = steamcmd app install/update/validate (sidecar); none = image installs itself (e.g. itzg); archive = download + verify + extract."
+        },
+        "image": {
+          "type": "string",
+          "maxLength": 512,
+          "description": "Optional override of the installer utility image. Defaults: kind steam -> ipshosting/steamcmd, kind archive -> ipshosting/game-tools."
+        },
+        "steam": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["appId"],
+          "properties": {
+            "appId": { "type": "integer", "minimum": 1 },
+            "login": {
+              "enum": ["anonymous", "host"],
+              "default": "anonymous",
+              "description": "anonymous = +login anonymous; host = shared host steam credentials (ipsd config), required for some games (e.g. arma3)."
+            },
+            "forcePlatform": {
+              "enum": ["linux", "windows", null],
+              "description": "Adds +@sSteamCmdForcePlatformType <value> (wine games: windows)."
+            },
+            "betaBranchSetting": {
+              "type": "string",
+              "description": "Setting key (type STRING) whose value selects the steam beta branch. Empty setting value = default branch."
+            },
+            "betaPasswordSetting": {
+              "type": "string",
+              "description": "Setting key (type HIDDENSTRING) holding the branch password, applied when betaBranchSetting yields a non-empty branch."
+            },
+            "extraArgs": {
+              "type": "array",
+              "items": { "type": "string", "maxLength": 128 },
+              "maxItems": 8,
+              "description": "Additional literal steamcmd arguments (rare; no templates)."
+            }
+          }
+        },
+        "archive": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["url", "checksum", "format"],
+          "properties": {
+            "url": { "type": "string", "format": "uri", "maxLength": 512 },
+            "checksum": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["algo", "value"],
+              "properties": {
+                "algo": { "enum": ["sha256"] },
+                "value": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+              }
+            },
+            "format": { "enum": ["tar.gz", "tar.xz", "tar.bz2", "zip"] },
+            "stripComponents": { "type": "integer", "minimum": 0, "maximum": 8, "default": 0 }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "steam" } } },
+          "then": { "required": ["steam"] }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "archive" } } },
+          "then": { "required": ["archive"] }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "none" } } },
+          "then": {
+            "properties": { "steam": false, "archive": false }
+          }
+        }
+      ]
+    },
+
+    "argItem": {
+      "oneOf": [
+        { "$ref": "#/$defs/template" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["arg"],
+          "properties": {
+            "arg": { "$ref": "#/$defs/template", "description": "One argv item." },
+            "value": { "$ref": "#/$defs/template", "description": "Optional second argv item appended after arg (dropped when empty)." },
+            "when": { "$ref": "#/$defs/template", "description": "Item is emitted only if this renders non-empty (after trim)." }
+          }
+        }
+      ]
+    },
+
+    "configFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "format"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^(?!/)[^\\x00]+$",
+          "description": "Path relative to runtime.dataPath."
+        },
+        "format": {
+          "enum": ["properties", "ini", "json", "yaml", "kv", "template"],
+          "description": "properties = java .properties; ini = INI sections (dot-notation keys 'Section.key'); json/yaml = document merge; kv = 'key<delimiter>value' lines with optional per-line quoting; template = full-file go-template (escape hatch, overwrite semantics)."
+        },
+        "values": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/template" },
+          "description": "Managed keys: target key (dot-notation for nested formats) -> value template. Ignored for format template."
+        },
+        "template": {
+          "$ref": "#/$defs/template",
+          "description": "Full-file go-template. Required for format template, forbidden otherwise."
+        },
+        "merge": {
+          "type": "boolean",
+          "default": true,
+          "description": "Preserve keys not managed by the manifest (structured formats only)."
+        },
+        "delimiter": {
+          "type": "string",
+          "default": "=",
+          "maxLength": 4,
+          "description": "kv format only."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "format": { "const": "template" } } },
+          "then": { "required": ["template"], "properties": { "values": false } }
+        },
+        {
+          "if": { "not": { "properties": { "format": { "const": "template" } } } },
+          "then": { "required": ["values"], "properties": { "template": false } }
+        }
+      ]
+    },
+
+    "stop": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "via": { "enum": ["docker", "stdin", "rcon"], "default": "docker" },
+        "command": {
+          "type": "string",
+          "maxLength": 256,
+          "description": "Command sent over stdin (or RCON) to trigger a graceful stop. Required for stdin/rcon."
+        },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 600, "default": 10 },
+        "port": { "type": "string", "description": "rcon only: port identifier (default 'rcon')." },
+        "passwordSetting": { "type": "string", "description": "rcon only: setting key (HIDDENSTRING) with the RCON password." }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "via": { "enum": ["stdin", "rcon"] } }, "required": ["via"] },
+          "then": { "required": ["command"] }
+        },
+        {
+          "if": { "properties": { "via": { "const": "rcon" } }, "required": ["via"] },
+          "then": { "required": ["port", "passwordSetting"] }
+        }
+      ]
+    },
+
+    "query": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol": { "enum": ["a2s", "minecraft", "rcon", "http", "none"], "default": "none" },
+        "port": { "type": "string", "description": "Port identifier probed (a2s/minecraft/rcon/http)." },
+        "fallbackPort": { "type": "string", "description": "minecraft auto mode: TCP server-list-ping fallback port identifier (primary = GameSpy4 UDP on port)." },
+        "command": { "type": "string", "description": "rcon only: info command (e.g. 'Info')." },
+        "passwordSetting": { "type": "string", "description": "rcon only: setting key (HIDDENSTRING) with the RCON password." },
+        "pattern": { "type": "string", "description": "rcon only: regex applied to the response; named groups or numbered groups extract fields." },
+        "nameGroup": { "type": "integer", "minimum": 0, "description": "rcon only: group index holding the server name." },
+        "mapGroup": { "type": "integer", "minimum": 0, "description": "rcon only: group index holding the map/level name." },
+        "maxPlayersGroup": { "type": "integer", "minimum": 0, "description": "rcon only: group index holding max players." },
+        "http": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "maxLength": 256 },
+            "namePath": { "type": "string" },
+            "playersPath": { "type": "string" },
+            "maxPlayersPath": { "type": "string" },
+            "mapPath": { "type": "string" }
+          },
+          "description": "http only: JSON endpoint + dot-paths into the response."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "protocol": { "enum": ["a2s", "minecraft", "rcon", "http"] } }, "required": ["protocol"] },
+          "then": { "required": ["port"] }
+        },
+        {
+          "if": { "properties": { "protocol": { "const": "rcon" } }, "required": ["protocol"] },
+          "then": { "required": ["command", "pattern", "passwordSetting"] }
+        },
+        {
+          "if": { "properties": { "protocol": { "const": "http" } }, "required": ["protocol"] },
+          "then": { "required": ["http"] }
+        }
+      ]
+    },
+
+    "port": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identifier", "protocol", "default"],
+      "properties": {
+        "identifier": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{0,31}$",
+          "description": "Semantic key used by args/config templates and ipsd (game, query, rcon, client, tv, app, web, ...). Unique per game."
+        },
+        "protocol": { "enum": ["TCP", "UDP"] },
+        "default": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535,
+          "description": "Allocation start port. If taken, ports are incremented (per group)."
+        },
+        "group": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "default": 0,
+          "description": "Ports sharing a group are incremented together so their spacing stays constant."
+        },
+        "static": {
+          "type": "boolean",
+          "default": false,
+          "description": "Container port is pinned to the default port."
+        }
+      }
+    },
+
+    "setting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "type", "sortOrder"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,127}$",
+          "description": "Referenced by templates ({{ .Setting \"key\" }}) and by workshop/settings cross-checks. Unique per game."
+        },
+        "name": { "type": "string", "minLength": 1, "maxLength": 128, "description": "German UI label." },
+        "description": { "type": "string", "maxLength": 512 },
+        "type": {
+          "enum": ["STRING", "HIDDENSTRING", "MULTILINESTRING", "NUMBER", "BOOLEAN", "STRINGENUM", "NUMBERENUM", "STRINGLIST"]
+        },
+        "validation": {
+          "type": "string",
+          "maxLength": 512,
+          "description": "validatorjs rule string (https://github.com/mikeerickson/validatorjs#readme), e.g. 'numeric|min:1|max:100'."
+        },
+        "default": {
+          "type": ["string", "null"],
+          "maxLength": 2048,
+          "description": "String-encoded default (BOOLEAN: '0'/'1'; NUMBER: decimal string; STRINGLIST: comma-separated)."
+        },
+        "sortOrder": { "type": "integer", "minimum": 0 },
+        "category": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Shared category name (platform-maintained set: Allgemein, Server Properties, Steam Beta Branch, RCON, ...). Sync resolves/creates by name."
+        },
+        "values": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 2048 },
+          "maxItems": 128,
+          "description": "Allowed values for *ENUM types; recommended values otherwise."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "enum": ["STRINGENUM", "NUMBERENUM"] } } },
+          "then": { "required": ["values"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "BOOLEAN" } } },
+          "then": {
+            "properties": { "default": { "type": ["string", "null"], "pattern": "^[01]$" } }
+          }
+        }
+      ]
+    },
+
+    "filePermission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["match"],
+      "properties": {
+        "match": { "type": "string", "minLength": 1, "maxLength": 4096, "description": "Glob pattern relative to dataPath (e.g. '/valheim_server.x86_64')." },
+        "allowRead": { "type": ["boolean", "null"], "description": "null = inherit next-lower priority." },
+        "allowWrite": { "type": ["boolean", "null"], "description": "null = inherit next-lower priority." },
+        "priority": { "type": "integer", "minimum": 0, "maximum": 255, "default": 0 }
+      }
+    },
+
+    "workshop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["settings"],
+      "properties": {
+        "settings": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "description": "Setting keys whose values hold numeric workshop item IDs (STRINGLIST) or collection IDs (STRING)." },
+          "maxItems": 8
+        },
+        "collections": { "type": "boolean", "default": false, "description": "STRING settings listed here accept workshop collections that are expanded by the engine." }
+      }
+    },
+
+    "flags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "renderLogo": { "type": "boolean", "default": false, "description": "true = image is a transparent logo (object-contain); false = full-bleed cover." },
+        "steamConnect": { "type": "boolean", "default": false, "description": "Panel shows a steam://connect link." },
+        "showMap": { "type": "boolean", "default": false },
+        "showPlayerCount": { "type": "boolean", "default": true },
+        "installable": { "type": "boolean", "default": true, "description": "false = self-installing image (install.kind none); panel hides the install button." }
+      }
+    },
+
+    "requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Minimum resources for the game to launch (Gamebox gate). Optional/empty for unknown games; refined at runtime from Prometheus usage data.",
+      "properties": {
+        "minCpuThreads": { "type": "number", "exclusiveMinimum": 0, "maximum": 64 },
+        "minRam": { "type": "integer", "minimum": 512, "maximum": 1048576, "description": "MB." },
+        "minDiskspace": { "type": "integer", "minimum": 1, "maximum": 4096, "description": "GB." }
+      }
+    }
+  }
+}
