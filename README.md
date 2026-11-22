@@ -24,6 +24,23 @@ To run Minecraft servers, the following image is recommended: https://github.com
 
 These images are used for [IPS Hosting](https://www.ips-hosting.com/), a german game server hosting provider. However, feel free to use them for your own needs.
 
+# Game definitions
+
+`games/<short>/game.yaml` describes a game completely: image, install, start, config files,
+ports, settings, query and requirements. Adding a game means adding one definition, without
+changes to the platform. The format is specified in [gamedef/SPEC.md](gamedef/SPEC.md); the
+Go module in [gamedef/](gamedef/) validates and renders definitions:
+
+```sh
+cd gamedef
+go test ./...
+go run ./cmd/gamedef validate -root ..
+go run ./cmd/gamedef render -set name="My server" ../games/valheim/game.yaml
+```
+
+Definitions imported from other catalogs (e.g. Pelican eggs, MIT) record their origin in
+`source`.
+
 # Input sanitization
 
 All the images, expect the given user input (e.g. command line arguments and environment variables) to be safe and already sanitized.
