@@ -1,0 +1,477 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/IPS-Hosting/game-images/gamedef/schema/game-definition.v1.json",
+  "title": "IPS Hosting game definition v1",
+  "description": "Complete, product-independent definition of one game. Specification: gamedef/SPEC.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "short", "name", "requires", "runtime", "start"],
+  "properties": {
+    "apiVersion": { "const": 1 },
+    "short": { "$ref": "#/$defs/short" },
+    "name": { "$ref": "#/$defs/i18n", "description": "Display name (de required)." },
+    "description": { "$ref": "#/$defs/i18n", "description": "Factual game description. Omitted: filled from Steam when steamAppId is set." },
+    "steamAppId": { "type": "integer", "minimum": 1, "description": "Store app id of the game (not the dedicated server)." },
+    "image": { "type": ["string", "null"], "format": "uri", "description": "Logo/cover URL. Omitted or null: keep the platform image." },
+    "tags": { "type": "array", "maxItems": 6, "uniqueItems": true, "items": { "$ref": "#/$defs/tag" } },
+    "source": { "$ref": "#/$defs/source" },
+    "requires": { "$ref": "#/$defs/requires" },
+    "runtime": { "$ref": "#/$defs/runtime" },
+    "install": {
+      "type": "array",
+      "maxItems": 16,
+      "description": "Ordered install/update stages. Empty or omitted: the image installs itself (flags.installable must be false).",
+      "items": { "$ref": "#/$defs/installStage" }
+    },
+    "start": { "$ref": "#/$defs/start" },
+    "console": { "$ref": "#/$defs/console" },
+    "stop": { "$ref": "#/$defs/stop" },
+    "ready": { "$ref": "#/$defs/ready" },
+    "players": { "$ref": "#/$defs/players" },
+    "query": { "$ref": "#/$defs/query" },
+    "ports": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/port" } },
+    "settings": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/setting" } },
+    "config": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/configFile" } },
+    "hooks": { "$ref": "#/$defs/hooks" },
+    "filePermissions": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/filePermission" } },
+    "backupIgnore": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/relativeGlob" } },
+    "preconditions": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/precondition" } },
+    "workshop": { "$ref": "#/$defs/workshop" },
+    "curseforge": { "$ref": "#/$defs/curseforge" },
+    "flags": { "$ref": "#/$defs/flags" },
+    "requirements": { "$ref": "#/$defs/requirements" }
+  },
+  "$defs": {
+    "short": { "type": "string", "pattern": "^[a-z0-9]{1,32}$" },
+    "template": { "type": "string", "maxLength": 8192 },
+    "i18n": {
+      "description": "Localized text. A plain string is shorthand for { de: <string> }.",
+      "oneOf": [
+        { "type": "string", "minLength": 1, "maxLength": 4096 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["de"],
+          "properties": {
+            "de": { "type": "string", "minLength": 1, "maxLength": 4096 },
+            "en": { "type": "string", "minLength": 1, "maxLength": 4096 }
+          }
+        }
+      ]
+    },
+    "tag": {
+      "enum": [
+        "action", "adventure", "battle-royale", "building", "co-op", "crafting", "fps", "horror",
+        "mmo", "moddable", "multiplayer", "open-world", "pvp", "pve", "racing", "roleplay",
+        "rts", "sandbox", "simulation", "space", "sports", "strategy", "survival", "tactical",
+        "voice", "zombies"
+      ]
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[^/\\x00][^\\x00]*$",
+      "description": "Path relative to runtime.dataPath. May be a template. Must not escape the data directory (checked semantically)."
+    },
+    "relativeGlob": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[^\\x00]+$"
+    },
+    "absolutePath": { "type": "string", "pattern": "^/[^\\x00]*$", "maxLength": 512 },
+    "envName": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$" },
+    "envMap": {
+      "type": "object",
+      "maxProperties": 64,
+      "propertyNames": { "$ref": "#/$defs/envName" },
+      "additionalProperties": { "$ref": "#/$defs/template" }
+    },
+    "settingKey": { "type": "string", "pattern": "^[a-zA-Z][a-zA-Z0-9_.-]{0,127}$" },
+    "portIdentifier": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,31}$" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from"],
+      "properties": {
+        "from": { "enum": ["manual", "egg", "amp", "lgsm"] },
+        "ref": { "type": "string", "maxLength": 512, "description": "Upstream file and commit, e.g. pelican-eggs/games-steamcmd@<sha>:valheim/egg-valheim.json." },
+        "license": { "type": "string", "maxLength": 64, "description": "SPDX id of the upstream license." }
+      }
+    },
+    "requires": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engine"],
+      "properties": {
+        "engine": { "type": "integer", "minimum": 1, "description": "Minimum engine version (gamedef.EngineVersion) that can run this definition." }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["image"],
+      "properties": {
+        "image": { "$ref": "#/$defs/template", "description": "Container image reference, pinned by digest for external registries. May be a template." },
+        "dataPath": { "$ref": "#/$defs/absolutePath", "default": "/home/ips-hosting" },
+        "env": { "$ref": "#/$defs/envMap" },
+        "mounts": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/mount" } }
+      }
+    },
+    "mount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "target"],
+      "properties": {
+        "source": { "$ref": "#/$defs/relativePath", "description": "File or directory in the data directory." },
+        "target": { "$ref": "#/$defs/absolutePath" },
+        "readOnly": { "type": "boolean", "default": true },
+        "createIfMissing": { "enum": ["empty", "machineId"], "description": "Create the source before the start when it does not exist." }
+      }
+    },
+    "when": { "$ref": "#/$defs/template", "description": "Rendered and trimmed. Empty, 0 and false (case-insensitive) are falsy." },
+    "installStage": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": { "kind": { "enum": ["steamcmd", "download", "script", "container"] } },
+      "allOf": [
+        { "if": { "properties": { "kind": { "const": "steamcmd" } } }, "then": { "$ref": "#/$defs/stageSteamcmd" } },
+        { "if": { "properties": { "kind": { "const": "download" } } }, "then": { "$ref": "#/$defs/stageDownload" } },
+        { "if": { "properties": { "kind": { "const": "script" } } }, "then": { "$ref": "#/$defs/stageScript" } },
+        { "if": { "properties": { "kind": { "const": "container" } } }, "then": { "$ref": "#/$defs/stageContainer" } }
+      ]
+    },
+    "stageSteamcmd": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "appId"],
+      "properties": {
+        "kind": true,
+        "when": { "$ref": "#/$defs/when" },
+        "appId": { "type": "integer", "minimum": 1 },
+        "login": { "enum": ["anonymous", "host"], "default": "anonymous" },
+        "platform": { "enum": ["linux", "windows"], "description": "+@sSteamCmdForcePlatformType" },
+        "branch": { "$ref": "#/$defs/template", "description": "Beta branch, empty = public." },
+        "branchPassword": { "$ref": "#/$defs/template" },
+        "dir": { "$ref": "#/$defs/relativePath", "description": "Install directory relative to dataPath (default: dataPath)." },
+        "extraArgs": { "type": "array", "maxItems": 8, "items": { "type": "string", "pattern": "^[^{}\\x00]*$" } }
+      }
+    },
+    "stageDownload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "url"],
+      "properties": {
+        "kind": true,
+        "when": { "$ref": "#/$defs/when" },
+        "url": { "$ref": "#/$defs/template" },
+        "checksum": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "dest": { "$ref": "#/$defs/relativePath", "description": "Target file (extract none) or directory." },
+        "extract": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "format": { "enum": ["none", "zip", "tar", "tar.gz", "tar.xz"], "default": "none" },
+            "stripComponents": { "type": "integer", "minimum": 0, "maximum": 8, "default": 0 }
+          }
+        }
+      }
+    },
+    "stageScript": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "shell"],
+      "properties": {
+        "kind": true,
+        "when": { "$ref": "#/$defs/when" },
+        "image": { "$ref": "#/$defs/template", "description": "Default: the platform installer image." },
+        "shell": { "type": "string", "minLength": 1, "maxLength": 65536, "description": "POSIX sh script, run as the unprivileged platform user with dataPath as working directory. Not a template: values come in via env." },
+        "env": { "$ref": "#/$defs/envMap" }
+      }
+    },
+    "stageContainer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "image"],
+      "properties": {
+        "kind": true,
+        "when": { "$ref": "#/$defs/when" },
+        "image": { "$ref": "#/$defs/template" },
+        "args": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/template" } },
+        "env": { "$ref": "#/$defs/envMap" }
+      }
+    },
+    "argItem": {
+      "oneOf": [
+        { "$ref": "#/$defs/template" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["arg"],
+          "properties": {
+            "arg": { "$ref": "#/$defs/template" },
+            "value": { "$ref": "#/$defs/template" },
+            "when": { "$ref": "#/$defs/when" }
+          }
+        }
+      ]
+    },
+    "start": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "args": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/argItem" } },
+        "shell": { "type": "string", "minLength": 1, "maxLength": 16384, "description": "POSIX sh command line, run via sh -c. Not a template: use env (start.env/runtime.env) for values." },
+        "env": { "$ref": "#/$defs/envMap" },
+        "workingDir": { "$ref": "#/$defs/relativePath" }
+      },
+      "not": { "required": ["args", "shell"] }
+    },
+    "console": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "via": { "enum": ["stdin", "rcon", "none"], "default": "stdin" },
+        "port": { "$ref": "#/$defs/portIdentifier" },
+        "passwordSetting": { "$ref": "#/$defs/settingKey" }
+      },
+      "if": { "properties": { "via": { "const": "rcon" } }, "required": ["via"] },
+      "then": { "required": ["port", "passwordSetting"] }
+    },
+    "stop": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "via": { "enum": ["signal", "command"], "default": "signal" },
+        "signal": { "enum": ["SIGTERM", "SIGINT", "SIGQUIT", "SIGHUP", "SIGKILL"], "default": "SIGTERM" },
+        "command": { "type": "string", "minLength": 1, "maxLength": 256, "description": "Sent over the console channel (stdin or rcon)." },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 600, "default": 10 }
+      },
+      "if": { "properties": { "via": { "const": "command" } }, "required": ["via"] },
+      "then": { "required": ["command"] }
+    },
+    "ready": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pattern"],
+      "properties": { "pattern": { "type": "string", "minLength": 1, "maxLength": 512, "description": "RE2 regex on the console output that marks the server as running." } }
+    },
+    "players": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "joinPattern": { "type": "string", "maxLength": 512, "description": "RE2 regex, optional named group 'name'." },
+        "leavePattern": { "type": "string", "maxLength": 512 }
+      }
+    },
+    "query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol"],
+      "properties": {
+        "protocol": { "enum": ["a2s", "minecraft", "rcon", "http", "none"] },
+        "port": { "$ref": "#/$defs/portIdentifier" },
+        "fallbackPort": { "$ref": "#/$defs/portIdentifier" },
+        "passwordSetting": { "$ref": "#/$defs/settingKey" },
+        "command": { "type": "string", "maxLength": 256 },
+        "pattern": { "type": "string", "maxLength": 512, "description": "RE2 regex with optional named groups name, map, players, maxPlayers." },
+        "countLinesCommand": { "type": "string", "maxLength": 256, "description": "rcon: command whose non-empty output lines (minus countLinesSkip) are the player count." },
+        "countLinesSkip": { "type": "integer", "minimum": 0, "maximum": 8, "default": 0 },
+        "url": { "$ref": "#/$defs/template" },
+        "insecure": { "type": "boolean", "default": false },
+        "paths": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" },
+            "map": { "type": "string" },
+            "players": { "type": "string" },
+            "maxPlayers": { "type": "string" }
+          }
+        }
+      },
+      "allOf": [
+        { "if": { "properties": { "protocol": { "enum": ["a2s", "minecraft", "rcon"] } } }, "then": { "required": ["port"] } },
+        { "if": { "properties": { "protocol": { "const": "rcon" } } }, "then": { "required": ["passwordSetting"] } },
+        { "if": { "properties": { "protocol": { "const": "http" } } }, "then": { "required": ["url"] } }
+      ]
+    },
+    "port": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identifier", "protocol", "default"],
+      "properties": {
+        "identifier": { "$ref": "#/$defs/portIdentifier" },
+        "name": { "$ref": "#/$defs/i18n" },
+        "protocol": { "enum": ["TCP", "UDP"] },
+        "default": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "group": { "type": "integer", "minimum": 0, "maximum": 255, "default": 0 },
+        "static": { "type": "boolean", "default": false }
+      }
+    },
+    "settingValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value"],
+      "properties": {
+        "value": { "type": "string", "maxLength": 256 },
+        "label": { "$ref": "#/$defs/i18n" }
+      }
+    },
+    "setting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "type"],
+      "properties": {
+        "key": { "$ref": "#/$defs/settingKey" },
+        "name": { "$ref": "#/$defs/i18n" },
+        "description": { "$ref": "#/$defs/i18n" },
+        "type": { "enum": ["STRING", "HIDDENSTRING", "MULTILINESTRING", "NUMBER", "BOOLEAN", "STRINGENUM", "NUMBERENUM", "STRINGLIST"] },
+        "default": { "type": "string", "maxLength": 2048, "description": "String-encoded default. BOOLEAN: '0' or '1'. STRINGLIST: JSON array." },
+        "validation": { "type": "string", "maxLength": 512, "description": "validatorjs rules." },
+        "category": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "sortOrder": { "type": "integer", "minimum": 0, "maximum": 100000, "default": 0 },
+        "values": { "type": "array", "maxItems": 512, "items": { "$ref": "#/$defs/settingValue" } },
+        "valuesSource": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]{0,63}$", "description": "Name of a platform value source (e.g. minecraftVersions) that supplies the values dynamically." },
+        "visibleWhen": { "$ref": "#/$defs/when" },
+        "userEditable": { "type": "boolean", "default": true }
+      }
+    },
+    "configFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "format"],
+      "properties": {
+        "path": { "$ref": "#/$defs/relativePath" },
+        "format": { "enum": ["properties", "kv", "ini", "json", "yaml", "template"] },
+        "values": {
+          "type": "object",
+          "maxProperties": 256,
+          "propertyNames": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "additionalProperties": { "$ref": "#/$defs/template" }
+        },
+        "template": { "$ref": "#/$defs/template" },
+        "delimiter": { "type": "string", "minLength": 1, "maxLength": 4, "description": "kv only, default '='." },
+        "onlyIfExists": { "type": "boolean", "default": false, "description": "Skip the file when it does not exist (e.g. created by the game on first start)." },
+        "createFrom": { "$ref": "#/$defs/relativePath", "description": "Copy this file to path when path does not exist, then apply the values." },
+        "when": { "$ref": "#/$defs/when" }
+      },
+      "allOf": [
+        { "if": { "properties": { "format": { "const": "template" } } }, "then": { "required": ["template"], "not": { "required": ["values"] } } },
+        { "if": { "properties": { "format": { "not": { "const": "template" } } } }, "then": { "required": ["values"], "not": { "required": ["template"] } } }
+      ]
+    },
+    "hookOp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "when": { "$ref": "#/$defs/when" },
+        "copyIfMissing": {
+          "type": "object", "additionalProperties": false, "required": ["from", "to"],
+          "properties": { "from": { "$ref": "#/$defs/relativePath" }, "to": { "$ref": "#/$defs/relativePath" } }
+        },
+        "symlink": {
+          "type": "object", "additionalProperties": false, "required": ["target", "link"],
+          "properties": { "target": { "$ref": "#/$defs/relativePath" }, "link": { "$ref": "#/$defs/relativePath" } }
+        },
+        "replace": {
+          "type": "object", "additionalProperties": false, "required": ["path", "pattern", "replacement"],
+          "properties": {
+            "path": { "$ref": "#/$defs/relativePath" },
+            "pattern": { "type": "string", "minLength": 1, "maxLength": 512 },
+            "replacement": { "$ref": "#/$defs/template" }
+          }
+        },
+        "ensureDir": {
+          "type": "object", "additionalProperties": false, "required": ["path"],
+          "properties": { "path": { "$ref": "#/$defs/relativePath" } }
+        },
+        "writeFile": {
+          "type": "object", "additionalProperties": false, "required": ["path", "content"],
+          "properties": {
+            "path": { "$ref": "#/$defs/relativePath" },
+            "content": { "$ref": "#/$defs/template" },
+            "mode": { "type": "string", "pattern": "^0[0-7]{3}$", "default": "0644" }
+          }
+        }
+      },
+      "minProperties": 1,
+      "oneOf": [
+        { "required": ["copyIfMissing"] },
+        { "required": ["symlink"] },
+        { "required": ["replace"] },
+        { "required": ["ensureDir"] },
+        { "required": ["writeFile"] }
+      ]
+    },
+    "hooks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "postInstall": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/hookOp" } },
+        "preStart": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/hookOp" } }
+      }
+    },
+    "filePermission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["match"],
+      "properties": {
+        "match": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "allowRead": { "type": ["boolean", "null"] },
+        "allowWrite": { "type": ["boolean", "null"] },
+        "priority": { "type": "integer", "minimum": 0, "maximum": 255, "default": 0 }
+      }
+    },
+    "precondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["check", "message"],
+      "properties": {
+        "check": { "$ref": "#/$defs/when", "description": "Must render truthy, otherwise the start is blocked (error) or a warning is shown." },
+        "message": { "$ref": "#/$defs/i18n" },
+        "severity": { "enum": ["error", "warning"], "default": "error" }
+      }
+    },
+    "workshop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["settings"],
+      "properties": {
+        "settings": { "type": "array", "minItems": 1, "maxItems": 8, "items": { "$ref": "#/$defs/settingKey" } },
+        "collections": { "type": "boolean", "default": false },
+        "appId": { "type": "integer", "minimum": 1, "description": "Workshop app id (default: steamAppId)." },
+        "login": { "enum": ["anonymous", "host"], "default": "anonymous" },
+        "dir": { "$ref": "#/$defs/relativePath", "description": "Item directory, default workshop/<itemId>." }
+      }
+    },
+    "curseforge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gameId"],
+      "properties": { "gameId": { "type": "integer", "minimum": 1 } }
+    },
+    "flags": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "renderLogo": { "type": "boolean", "default": false },
+        "steamConnect": { "type": "boolean", "default": false },
+        "showMap": { "type": "boolean", "default": false },
+        "showPlayerCount": { "type": "boolean", "default": true },
+        "installable": { "type": "boolean", "default": true },
+        "consoleCommands": { "type": "boolean", "default": true }
+      }
+    },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "minCpuThreads": { "type": "number", "exclusiveMinimum": 0, "maximum": 64 },
+        "minRam": { "type": "integer", "minimum": 128, "maximum": 262144, "description": "MB" },
+        "minDiskspace": { "type": "integer", "minimum": 1, "maximum": 4096, "description": "GB" }
+      }
+    }
+  }
+}
