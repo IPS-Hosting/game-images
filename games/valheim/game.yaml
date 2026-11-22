@@ -1,0 +1,174 @@
+# Valheim — migration target for the existing platform game (ipsd game/valheim.go,
+# valheim/entrypoint.sh). Setting keys, defaults and paths match the production game so that
+# existing servers keep their values and saves.
+apiVersion: 1
+
+short: valheim
+name: Valheim
+steamAppId: 892970
+tags: [survival, open-world, co-op, crafting, moddable]
+
+source:
+  from: egg
+  ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:valheim/valheim_vanilla/egg-valheim.json
+  license: MIT
+
+requires:
+  engine: 1
+
+runtime:
+  image: ghcr.io/parkervcp/games:valheim@sha256:c851b055fa784608244b9e494ada4af421f78001e42e71bf5aa73ded2b321ad1
+  dataPath: /home/ips-hosting
+
+install:
+  - kind: steamcmd
+    appId: 896660
+    branch: '{{ $branch := .Setting "betaBranch" }}{{ if ne $branch "public" }}{{ $branch }}{{ end }}'
+    branchPassword: '{{ .Setting "betaPassword" }}'
+
+start:
+  env:
+    GAME_PORT: '{{ (.Port "game").Container }}'
+    NAME: '{{ .Setting "name" }}'
+    WORLD: '{{ .Setting "world" }}'
+    PASSWORD: '{{ .Setting "password" }}'
+    PUBLIC: '{{ .SettingBool "public" | boolInt }}'
+    SAVEINTERVAL: '{{ .Setting "saveinterval" }}'
+    BACKUPS: '{{ .Setting "backups" }}'
+    BACKUPSHORT: '{{ .Setting "backupshort" }}'
+    BACKUPLONG: '{{ .Setting "backuplong" }}'
+    CROSSPLAY: '{{ .SettingBool "crossplay" | boolInt }}'
+  # Shell start: BepInEx/ValheimPlus need the doorstop variables only when the mod loader is
+  # installed, exactly like the production entrypoint.
+  shell: |
+    if [ -d BepInEx ]; then
+      export DOORSTOP_ENABLE=TRUE
+      export DOORSTOP_INVOKE_DLL_PATH="$HOME/BepInEx/core/BepInEx.Preloader.dll"
+      export DOORSTOP_CORLIB_OVERRIDE_PATH="$HOME/unstripped_corlib"
+      export LD_LIBRARY_PATH="$HOME/doorstop_libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      export LD_PRELOAD="libdoorstop_x64.so${LD_PRELOAD:+:$LD_PRELOAD}"
+    fi
+    export LD_LIBRARY_PATH="$HOME/linux64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    export SteamAppId=892970
+    set -- -nographics -batchmode -port "$GAME_PORT" -name "$NAME" -world "$WORLD" \
+      -password "$PASSWORD" -savedir "$HOME/data" -public "$PUBLIC" \
+      -saveinterval "$SAVEINTERVAL" -backups "$BACKUPS" -backupshort "$BACKUPSHORT" -backuplong "$BACKUPLONG"
+    if [ "$CROSSPLAY" = "1" ]; then set -- "$@" -crossplay; fi
+    exec ./valheim_server.x86_64 "$@"
+
+console:
+  via: none
+
+stop:
+  via: signal
+  signal: SIGINT          # valheim saves the world on SIGINT
+  timeoutSeconds: 30
+
+ready:
+  pattern: 'DungeonDB Start'
+
+query:
+  protocol: a2s
+  port: query
+
+ports:
+  - { identifier: game,  protocol: UDP, default: 2456, group: 0 }
+  - { identifier: query, protocol: UDP, default: 2457, group: 0 }
+
+settings:
+  - key: name
+    name: Name
+    type: STRING
+    default: A Valheim server powered by ips-hosting.com
+    validation: string|required|min:3|max:255
+    category: Allgemein
+    sortOrder: 0
+  - key: world
+    name: Welt
+    description: Der Name der Welt
+    type: STRING
+    default: Dedicated
+    validation: string|required|min:3|max:251
+    category: Allgemein
+    sortOrder: 10
+  - key: password
+    name: Passwort
+    description: Das Server Passwort. Muss aus mindestens 5 Zeichen bestehen und darf nicht im Server Namen enthalten sein.
+    type: HIDDENSTRING
+    default: '#Change_Me!'
+    validation: string|required|min:5|max:255
+    category: Allgemein
+    sortOrder: 20
+  - key: public
+    name: Öffentlich
+    description: Ob der Server in der Serverliste angezeigt wird.
+    type: BOOLEAN
+    default: '1'
+    category: Allgemein
+    sortOrder: 30
+  - key: crossplay
+    name: Crossplay
+    description: Erlaubt Spielern von Xbox und Microsoft Store, dem Server beizutreten.
+    type: BOOLEAN
+    default: '0'
+    category: Allgemein
+    sortOrder: 40
+  - key: saveinterval
+    name: Speicherintervall (Sekunden)
+    type: NUMBER
+    default: '1800'
+    validation: numeric|min:60
+    category: Allgemein
+    sortOrder: 50
+  - key: backups
+    name: Anzahl Backups
+    type: NUMBER
+    default: '4'
+    validation: numeric|min:1
+    category: Allgemein
+    sortOrder: 60
+  - key: backupshort
+    name: Erstes Backup nach (Sekunden)
+    type: NUMBER
+    default: '7200'
+    validation: numeric|min:60
+    category: Allgemein
+    sortOrder: 70
+  - key: backuplong
+    name: Weitere Backups alle (Sekunden)
+    type: NUMBER
+    default: '43200'
+    validation: numeric|min:60
+    category: Allgemein
+    sortOrder: 80
+  - key: betaBranch
+    name: Beta Branch
+    description: Name der Beta Branch, auf der der Server laufen soll. Beim Wechsel können Server-Dateien überschrieben werden.
+    type: STRING
+    default: public
+    category: Steam Beta Branch
+    sortOrder: 0
+  - key: betaPassword
+    name: Beta Passwort
+    description: Manche Beta Branches sind durch ein Passwort geschützt, welches hier angegeben werden kann.
+    type: HIDDENSTRING
+    category: Steam Beta Branch
+    sortOrder: 10
+
+preconditions:
+  - check: '{{ ge (len (.Setting "password")) 5 }}'
+    message: Das Server-Passwort muss aus mindestens 5 Zeichen bestehen.
+  - check: '{{ not (.Setting "name" | contains (.Setting "password")) }}'
+    message: Das Server-Passwort darf nicht im Servernamen enthalten sein.
+
+filePermissions:
+  - { match: /valheim_server.x86_64, allowWrite: false, priority: 10 }
+
+flags:
+  renderLogo: true
+  showPlayerCount: true
+
+requirements:
+  minCpuThreads: 1
+  minRam: 2048
+  minDiskspace: 4

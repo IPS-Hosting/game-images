@@ -1,0 +1,181 @@
+# Counter-Strike 2 — replaces the discontinued CS:GO game. New game (no production data);
+# existing CS:GO servers move over by switching the game.
+apiVersion: 1
+
+short: cs2
+name: Counter-Strike 2
+steamAppId: 730
+tags: [action, fps, multiplayer, pvp, tactical]
+
+source:
+  from: egg
+  ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:counter_strike/counter_strike_2/egg-counter--strike2.yaml
+  license: MIT
+
+requires:
+  engine: 1
+
+runtime:
+  image: ghcr.io/parkervcp/steamcmd:sniper@sha256:99d436be50b2c57e94e922597adca0f327a8fcc29204520be929c26efb1f4810
+  dataPath: /home/container
+
+install:
+  - kind: steamcmd
+    appId: 730
+  # The dedicated server loads the steam client library from ~/.steam/sdk64. The installer
+  # image provides steamcmd under $STEAMCMD_DIR (SPEC §3.2).
+  - kind: script
+    shell: |
+      mkdir -p .steam/sdk64
+      cp "$STEAMCMD_DIR/linux64/steamclient.so" .steam/sdk64/steamclient.so
+
+start:
+  env:
+    LD_LIBRARY_PATH: /home/container/game/bin/linuxsteamrt64
+  args:
+    - ./game/bin/linuxsteamrt64/cs2
+    - -dedicated
+    - -ip
+    - 0.0.0.0
+    - -port
+    - '{{ (.Port "game").Container }}'
+    - -tv_port
+    - '{{ (.Port "tv").Container }}'
+    - -maxplayers
+    - '{{ .Setting "maxPlayers" }}'
+    - arg: -insecure
+      when: '{{ not (.SettingBool "vac") }}'
+    - arg: -usercon
+      when: '{{ ne (.Setting "rconPassword") "" }}'
+    - +game_type
+    - '{{ .Setting "gameType" }}'
+    - +game_mode
+    - '{{ .Setting "gameMode" }}'
+    - +map
+    - '{{ .Setting "map" }}'
+    - +hostname
+    - '{{ .Setting "name" }}'
+    - arg: +sv_password
+      value: '{{ .Setting "password" }}'
+    - arg: +rcon_password
+      value: '{{ .Setting "rconPassword" }}'
+    - arg: +sv_setsteamaccount
+      value: '{{ .Setting "gslt" }}'
+
+console:
+  via: stdin
+
+stop:
+  via: command
+  command: quit
+  timeoutSeconds: 15
+
+ready:
+  pattern: 'Connection to Steam servers successful'
+
+query:
+  protocol: a2s
+  port: game
+
+ports:
+  - { identifier: game, protocol: UDP, default: 27015, group: 0 }
+  - { identifier: rcon, protocol: TCP, default: 27015, group: 0 }
+  - { identifier: tv,   protocol: UDP, default: 27020, group: 1 }
+
+settings:
+  - key: name
+    name: Servername
+    type: STRING
+    default: Mein CS2 Server
+    validation: string|required|min:3|max:64
+    category: Allgemein
+    sortOrder: 0
+  - key: password
+    name: Server-Passwort
+    description: Leer lassen für einen öffentlichen Server.
+    type: HIDDENSTRING
+    validation: string|max:64
+    category: Allgemein
+    sortOrder: 10
+  - key: maxPlayers
+    name: Maximale Spieler
+    type: NUMBER
+    default: '12'
+    validation: numeric|min:2|max:64
+    category: Allgemein
+    sortOrder: 20
+  - key: gslt
+    name: Game Server Login Token
+    description: Ohne Token ist der Server nur über die lokale Verbindung erreichbar. Token erstellen unter https://steamcommunity.com/dev/managegameservers (App-ID 730).
+    type: HIDDENSTRING
+    validation: string|max:64
+    category: Allgemein
+    sortOrder: 30
+  - key: vac
+    name: VAC aktiviert
+    type: BOOLEAN
+    default: '1'
+    category: Allgemein
+    sortOrder: 40
+  - key: map
+    name: Startkarte
+    type: STRINGENUM
+    default: de_dust2
+    category: Spielmodus und Karten
+    sortOrder: 0
+    values:
+      - { value: de_dust2 }
+      - { value: de_mirage }
+      - { value: de_inferno }
+      - { value: de_nuke }
+      - { value: de_overpass }
+      - { value: de_ancient }
+      - { value: de_anubis }
+      - { value: de_vertigo }
+      - { value: cs_office }
+      - { value: cs_italy }
+  - key: gameType
+    name: Spieltyp
+    type: NUMBERENUM
+    default: '0'
+    category: Spielmodus und Karten
+    sortOrder: 10
+    values:
+      - { value: '0', label: Klassisch }
+      - { value: '1', label: Waffenspiele }
+      - { value: '3', label: Benutzerdefiniert }
+  - key: gameMode
+    name: Spielmodus
+    description: 'Klassisch: 0 = Casual, 1 = Competitive, 2 = Wingman. Waffenspiele: 0 = Arms Race, 2 = Deathmatch.'
+    type: NUMBERENUM
+    default: '1'
+    category: Spielmodus und Karten
+    sortOrder: 20
+    values:
+      - { value: '0', label: Casual / Arms Race }
+      - { value: '1', label: Competitive }
+      - { value: '2', label: Wingman / Deathmatch }
+  - key: rconPassword
+    name: RCON-Passwort
+    description: Leer lassen, um RCON zu deaktivieren.
+    type: HIDDENSTRING
+    validation: string|max:64
+    category: RCON
+    sortOrder: 0
+
+preconditions:
+  - check: '{{ ne (.Setting "gslt") "" }}'
+    severity: warning
+    message: Ohne Game Server Login Token erscheint der Server nicht in der Serverliste und Spieler können nur per IP beitreten.
+
+filePermissions:
+  - { match: /game/bin/**, allowWrite: false, priority: 10 }
+
+flags:
+  steamConnect: true
+  showMap: true
+
+requirements:
+  minCpuThreads: 2
+  minRam: 4096
+  minDiskspace: 60

@@ -1,0 +1,104 @@
+# Satisfactory — migration target for the existing platform game (ipsd game/satisfactory.go,
+# satisfactory/entrypoint.sh). Ports and setting keys follow the production game; the
+# production port rows are verified before the switch (migration milestone).
+apiVersion: 1
+
+short: satisfactory
+name: Satisfactory
+steamAppId: 526870
+tags: [building, co-op, crafting, open-world, simulation]
+
+source:
+  from: egg
+  ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:satisfactory/egg-satisfactory.json
+  license: MIT
+
+requires:
+  engine: 1
+
+runtime:
+  image: ghcr.io/parkervcp/steamcmd:debian@sha256:c59cff8cd1202c8f283b8b36344166a9fc16e3f781aa1be7d10187cd9d7566d8
+  dataPath: /home/ips-hosting
+
+install:
+  - kind: steamcmd
+    appId: 1690800
+    branch: '{{ $branch := .Setting "betaBranch" }}{{ if ne $branch "public" }}{{ $branch }}{{ end }}'
+    branchPassword: '{{ .Setting "betaPassword" }}'
+  # SteamAPI_Init looks up the steam client library in ~/.steam/sdk32 and ~/.steam/sdk64,
+  # which SteamCMD does not populate. The installer image provides steamcmd under
+  # $STEAMCMD_DIR (SPEC §3.2).
+  - kind: script
+    shell: |
+      mkdir -p .steam/sdk32 .steam/sdk64
+      cp "$STEAMCMD_DIR/linux32/steamclient.so" .steam/sdk32/steamclient.so
+      cp "$STEAMCMD_DIR/linux64/steamclient.so" .steam/sdk64/steamclient.so
+
+start:
+  workingDir: Engine/Binaries/Linux
+  env:
+    UE_PROJECT_ROOT: /home/ips-hosting
+  args:
+    - ./FactoryServer-Linux-Shipping
+    - FactoryGame
+    - '-Port={{ (.Port "game").Container }}'
+    - '-ReliablePort={{ (.Port "messaging").Container }}'
+    - -DisablePacketRouting
+
+console:
+  via: none
+
+stop:
+  via: signal
+  signal: SIGINT
+  timeoutSeconds: 30
+
+ready:
+  pattern: 'Engine Initialization'
+
+query:
+  protocol: a2s
+  port: query
+
+ports:
+  - { identifier: game,      protocol: UDP, default: 7777,  group: 0 }
+  - { identifier: api,       protocol: TCP, default: 7777,  group: 0 }
+  - { identifier: messaging, protocol: TCP, default: 8888,  group: 1 }
+  - { identifier: query,     protocol: UDP, default: 15777, group: 2 }
+
+settings:
+  - key: maxPlayers
+    name: Maximale Spieler
+    description: Wird beim nächsten Start in Game.ini übernommen, sobald der Server die Datei angelegt hat.
+    type: NUMBER
+    default: '4'
+    validation: numeric|min:1|max:64
+    category: Allgemein
+    sortOrder: 0
+  - key: betaBranch
+    name: Beta Branch
+    description: Name der Beta Branch, auf der der Server laufen soll (z. B. experimental).
+    type: STRING
+    default: public
+    category: Steam Beta Branch
+    sortOrder: 0
+  - key: betaPassword
+    name: Beta Passwort
+    type: HIDDENSTRING
+    category: Steam Beta Branch
+    sortOrder: 10
+
+config:
+  - path: FactoryGame/Saved/Config/LinuxServer/Game.ini
+    format: ini
+    onlyIfExists: true
+    values:
+      /Script/Engine.GameSession.MaxPlayers: '{{ .Setting "maxPlayers" }}'
+
+flags:
+  renderLogo: true
+
+requirements:
+  minCpuThreads: 2
+  minRam: 8192
+  minDiskspace: 15
