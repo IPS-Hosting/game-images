@@ -1,0 +1,170 @@
+# Unturned — new game, derived from the Pelican egg (games-steamcmd unturned).
+# STATUS: validated (boot-test 2026-11-27 game2: install and start ok; ready not reached with a dummy
+#   GSLT, k_EResultAccountNotFound, needs a real GSLT)
+#
+# Server options live in Servers/IPS/Server/Commands.dat (one "Command value" per line); the
+# managed commands are set before every start, all other lines stay. Internet servers need a
+# Game Server Login Token (GSLT) of the customer.
+apiVersion: 1
+
+short: unturned
+name: Unturned
+steamAppId: 304930
+tags: [survival, zombies, sandbox, crafting, multiplayer, moddable]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:unturned/egg-unturned.json
+    license: MIT
+
+run:
+  image: ghcr.io/parkervcp/steamcmd:debian@sha256:c59cff8cd1202c8f283b8b36344166a9fc16e3f781aa1be7d10187cd9d7566d8
+  dataPath: /home/container
+  env:
+    LD_LIBRARY_PATH: ./Unturned_Headless_Data/Plugins/x86_64/
+  exec:
+    - ./Unturned_Headless.x86_64
+    - -batchmode
+    - -nographics
+    - +InternetServer/IPS
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: shutdown
+    timeoutSeconds: 30
+  ready:
+    pattern: 'Loading level: 100%'
+
+install:
+  - kind: steamcmd
+    appId: 1110390
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # Steamworks SDK redistributable: provides linux64/steamclient.so for ~/.steam/sdk64.
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
+    steamSdk: true
+
+hooks:
+  postInstall:
+    # The headless server loads steamclient.so from its plugin directory (as in the egg).
+    - symlink:
+        target: steamworks/linux64/steamclient.so
+        link: Unturned_Headless_Data/Plugins/x86_64/steamclient.so
+    - ensureDir: { path: Servers/IPS/Server }
+    # The server writes steam_appid.txt only during its first start, after SteamGameServer_Init: without
+    # it the first start quits with "server init failed (GameServer API initialization failed!)".
+    - writeFile: { path: steam_appid.txt, content: '304930', mode: '0644', ifMissing: true }
+
+query:
+  protocol: a2s
+  port: query
+
+ports:
+  - { identifier: game,  protocol: UDP, default: 27015, group: 0 }
+  - { identifier: query, protocol: UDP, default: 27016, group: 0 }
+
+settings:
+  - key: gslt
+    name: Game Server Login Token
+    description:
+      de: 'Pflicht für Internet-Server. Token erstellen unter https://steamcommunity.com/dev/managegameservers (App-ID 304930).'
+      en: 'Required for internet servers. Create a token at https://steamcommunity.com/dev/managegameservers (app id 304930).'
+    type: HIDDENSTRING
+    validation: { maxLength: 64, pattern: '[A-Za-z0-9]*' }
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Mein Unturned Server
+    validation: { required: true, minLength: 3, maxLength: 50 }
+  - key: password
+    name: { de: Server-Passwort, en: Server password }
+    description: { de: Leer lassen für einen öffentlichen Server., en: Leave empty for a public server. }
+    type: HIDDENSTRING
+    validation: { maxLength: 64, pattern: '[^ ]*' }
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '24'
+    validation: { integer: true, min: 1, max: 200 }
+  - key: map
+    name: { de: Karte, en: Map }
+    description: { de: 'z. B. PEI, Washington, Russia, Yukon, Germany, Hawaii, Greece, Kuwait, Elver oder eine Workshop-Karte.', en: 'e.g. PEI, Washington, Russia, Yukon, Germany, Hawaii, Greece, Kuwait, Elver or a workshop map.' }
+    type: STRING
+    default: PEI
+    category: world
+    validation: { required: true, maxLength: 64, pattern: '[A-Za-z0-9 _-]+' }
+  - key: mode
+    name: { de: Schwierigkeit, en: Difficulty }
+    type: STRINGENUM
+    default: Normal
+    category: gameplay
+    values:
+      - { value: Easy, label: { de: Leicht, en: Easy } }
+      - { value: Normal, label: { de: Normal, en: Normal } }
+      - { value: Hard, label: { de: Schwer, en: Hard } }
+  - key: perspective
+    name: { de: Perspektive, en: Perspective }
+    type: STRINGENUM
+    default: Both
+    category: gameplay
+    values:
+      - { value: Both, label: { de: Erste und dritte Person, en: First and third person } }
+      - { value: First, label: { de: Nur erste Person, en: First person only } }
+      - { value: Third, label: { de: Nur dritte Person, en: Third person only } }
+      - { value: Vehicle, label: { de: Dritte Person nur in Fahrzeugen, en: Third person in vehicles only } }
+  - key: motd
+    name: { de: Begrüßungsnachricht, en: Message of the day }
+    type: STRING
+    category: general
+    validation: { maxLength: 200 }
+  - key: betaBranch
+    name: Beta-Branch
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: { de: Beta-Passwort, en: Beta password }
+    type: HIDDENSTRING
+    category: steamBeta
+
+# TODO(M3): check that empty "Password"/"Welcome" lines clear the value without errors.
+config:
+  - path: Servers/IPS/Server/Commands.dat
+    format: kv
+    delimiter: ' '
+    values:
+      Name: '{{ .Setting "name" }}'
+      Port: '{{ (.Port "game").Container }}'
+      MaxPlayers: '{{ .Setting "maxPlayers" }}'
+      Map: '{{ .Setting "map" }}'
+      Mode: '{{ .Setting "mode" }}'
+      Perspective: '{{ .Setting "perspective" }}'
+      Password: '{{ .Setting "password" }}'
+      Welcome: '{{ .Setting "motd" }}'
+      GSLT: '{{ .Setting "gslt" }}'
+
+preconditions:
+  - check: { setting: gslt, matches: '\S' }
+    severity: error
+    message: Unturned-Internet-Server brauchen einen Game Server Login Token. Bitte den Token in den Einstellungen hinterlegen.
+
+protectedFiles:
+  - { path: /Unturned_Headless.x86_64, readOnly: true }
+  - { path: /Unturned_Headless_Data/**, readOnly: true }
+  - { path: /Bundles/**, readOnly: true }
+  - { path: /steamworks/**, readOnly: true }
+
+backupIgnore:
+  - Bundles/**
+  - Unturned_Headless_Data/**
+  - Extras/**
+  - steamapps/**
+  - steamworks/**
+  - Logs/**
+
+requirements:
+  minCpuThreads: 1
+  minRam: 2048
+  minDiskspace: 8

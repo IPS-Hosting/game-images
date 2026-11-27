@@ -1,0 +1,131 @@
+# Eco — survival and civilisation sandbox; migration target for the existing platform game.
+# Legacy sources:
+#   - ipsd game/eco.go (image ipshosting/game-eco:v2, steam install with beta branch, query of
+#     the web server's /info endpoint)
+#   - game-images eco/Dockerfile + eco/entrypoint.sh (steamcmd app 739590 into the data
+#     directory, start ./EcoServer in the data directory)
+# STATUS: boot-tested (2026-11-27, game2)
+#
+# The steamcmd part of the entrypoint is replaced by a steamcmd stage; the server binary runs
+# in the production image.
+#
+# TODO(M4): the api seeds have no GamePort/GameSetting rows for this game. Ports follow the
+#   image (3000/udp game, 3001/tcp web) and setting keys follow ipsd; verify identifiers,
+#   defaults, groups and static against the production rows.
+apiVersion: 1
+
+short: eco
+name: Eco
+steamAppId: 382310
+tags: [survival, simulation, building, crafting, co-op, multiplayer]
+
+sources:
+  - kind: manual
+
+run:
+  image: ipshosting/game-eco:v2
+  dataPath: /home/ips-hosting
+  # Production binds a writable per-server /tmp into the container.
+  tmpfs: [/tmp]
+  env:
+    USER_TOKEN: '{{ .Setting "userToken" }}'
+  # Current Eco versions authenticate the server with Strange Cloud at start and quit without
+  # credentials ("Authentication to Strange Cloud failed ... use -offline"). With a server token
+  # the server starts online, without one in offline mode.
+  shell: |
+    if [ -n "$USER_TOKEN" ]; then
+      set -- -userToken="$USER_TOKEN"
+    else
+      set -- -offline
+    fi
+    unset USER_TOKEN
+    exec ./EcoServer "$@"
+  console:
+    via: stdin
+  stop:
+    via: signal
+    signal: SIGTERM
+    # The server saves the world on SIGTERM; a fresh world already takes more than 10 s.
+    timeoutSeconds: 60
+  ready:
+    pattern: 'Web Server now listening on'   # ready string of the Pelican eco egg
+
+install:
+  - kind: steamcmd
+    appId: 739590
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # Steamworks SDK redistributable: the server loads ~/.steam/sdk64/steamclient.so ("Steam game
+  # server failed to initialize" without it).
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
+    steamSdk: true
+
+# Production does not pass the ports to the server; Eco reads them from Configs/Network.eco
+# (created on first start). Keep that file in line with the allocated container ports.
+config:
+  - path: Configs/Network.eco
+    format: json
+    onlyIfExists: true
+    values:
+      GameServerPort: '{{ (.Port "game").Container }}'
+      WebServerPort: '{{ (.Port "web").Container }}'
+
+# The web server answers /info with OnlinePlayers and TotalPlayers (ipsd uses only these).
+query:
+  protocol: http
+  port: web
+  path: /info
+  paths:
+    players: OnlinePlayers
+    maxPlayers: TotalPlayers
+
+ports:
+  - { identifier: game, protocol: UDP, default: 3000, group: 0 }
+  - { identifier: web,  protocol: TCP, default: 3001, group: 0 }
+
+settings:
+  - key: betaBranch
+    name: Beta-Branch
+    description: >-
+      Name der Beta Branch, auf der der Server laufen soll. Beim Wechsel können Server-Dateien
+      überschrieben werden.
+    type: STRING
+    category: steamBeta
+    validation: { maxLength: 128, pattern: '[A-Za-z0-9._-]+' }
+  - key: betaPassword
+    name: Beta-Passwort
+    description: Manche Beta Branches sind durch ein Passwort geschützt, welches hier angegeben werden kann.
+    type: HIDDENSTRING
+    category: steamBeta
+    validation: { maxLength: 255 }
+  - key: userToken
+    name: { de: Server-Token, en: Server token }
+    description:
+      de: >-
+        Strange-Cloud-Token des Server-Besitzers (play.eco, Konto). Ohne Token startet der Server im
+        Offline-Modus.
+      en: >-
+        Strange Cloud token of the server owner (play.eco account). Without a token the server starts
+        in offline mode.
+    type: HIDDENSTRING
+    validation: { maxLength: 512 }
+
+preconditions:
+  - check: { setting: userToken, notEquals: '' }
+    severity: warning
+    message:
+      de: Ohne Server-Token startet Eco im Offline-Modus.
+      en: Without a server token Eco starts in offline mode.
+
+backupIgnore:
+  - /steamapps/**
+  - /steamworks/**
+
+protectedFiles:
+  - { path: /EcoServer, readOnly: true }
+
+requirements:
+  minCpuThreads: 2
+  minRam: 4096
+  minDiskspace: 10

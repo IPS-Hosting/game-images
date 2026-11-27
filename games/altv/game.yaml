@@ -1,0 +1,84 @@
+# alt:V — GTA V multiplayer framework; migration target for the existing platform game.
+# Legacy sources:
+#   - ipsd game/altv.go (image ipshosting/game-altv:v3, install/update via the image's
+#     install_update command, start with --host 0.0.0.0 --port <game>)
+#   - ipsd game/query_altv.go (player count from the public alt:V master list)
+#   - game-images altv/Dockerfile + altv/entrypoint.sh (alt:V server updater, npm/yarn install
+#     and build of the customer's resources)
+#   - api prisma/seed GamePort.ts / GameFilePermission.ts / game.ts
+# STATUS: needs M3 installer
+#
+# TODO(M4): ipsd fills the query from the public master list (api.altv.mp/servers/list,
+#   matched by IPv4 and exposed game port). No gamedef query protocol can do that, and the
+#   server itself has no JSON status endpoint, so the query is "none" here: the panel loses
+#   the player count until the engine gets a master list query.
+apiVersion: 1
+
+short: altv
+name: alt:V
+description:
+  de: >-
+    alt:V ist ein Multiplayer Framework für GTA:V, mit dem mehrere Hundert Spieler gemeinsam GTA
+    spielen können. Ein alt:V Server bietet kein fertiges Spielerlebnis: es werden eigene oder
+    fremde Scripts benötigt.
+  en: >-
+    alt:V is a multiplayer framework for GTA V that lets hundreds of players play together. An
+    alt:V server is not a finished game mode: it needs your own or third-party scripts.
+image: https://a.storyblok.com/f/74037/x/e732412709/altv.svg
+tags: [multiplayer, roleplay, open-world, moddable]
+
+sources:
+  - kind: manual
+
+run:
+  image: ipshosting/game-altv:v3
+  dataPath: /home/ips-hosting
+  # Production binds a writable per-server /tmp into the container.
+  tmpfs: [/tmp]
+  exec:
+    - ./altv-server
+    - --config
+    - ./server.cfg
+    - --host
+    - 0.0.0.0
+    - --port
+    - '{{ (.Port "game").Container }}'
+  console:
+    via: stdin
+  stop:
+    via: signal
+    signal: SIGTERM
+    timeoutSeconds: 10
+  ready:
+    pattern: 'Server started'   # ready string of the Pelican alt:V egg
+
+# The image's install_update command downloads the alt:V updater, updates the server files
+# and modules from server.cfg, installs npm/yarn dependencies and runs the build script.
+# It runs in the production image, which brings Node.js, yarn and the .NET SDK.
+install:
+  - kind: script
+    image: ipshosting/game-altv:v3
+    shell: |
+      exec /bin/bash /ips-hosting/entrypoint.sh install_update
+
+query:
+  protocol: none
+
+ports:
+  - { identifier: game, protocol: UDP, default: 7788, group: 0 }
+  - { identifier: http, protocol: TCP, default: 7788, group: 0 }
+
+protectedFiles:
+  - { path: /altv-server, readOnly: true }
+  - { path: /update.sh, readOnly: true }
+
+# Downloaded by the alt:V updater on install/update.
+backupIgnore:
+  - /altv-server
+  - /modules/**
+  - /data/*.bin
+
+requirements:
+  minCpuThreads: 1
+  minRam: 2048
+  minDiskspace: 5

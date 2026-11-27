@@ -1,0 +1,216 @@
+# Sons of the Forest — new game, Windows-only dedicated server under Wine, based on the Pelican egg.
+# STATUS: needs Wine runtime (M3) (also needs the M3 installer: winetricks script stage)
+#
+# Runs under the pelican wine_latest yolk. Start arguments, ports, ready line and the config file
+# follow the pelican egg; the winetricks setup of the yolk entrypoint runs once as an install stage.
+# Wine/Proton runtime contract (prefix, tmpfs, display, stop): games/enshrouded/README.md.
+apiVersion: 1
+
+short: sotf
+name: Sons of the Forest
+steamAppId: 1326470
+tags: [survival, horror, co-op, crafting, open-world]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:sonsoftheforest/egg-sons-of-the-forest.json
+    license: MIT
+
+run:
+  image: ghcr.io/pelican-eggs/yolks:wine_latest@sha256:1d4cc591785abceb9faae159dcf6ce686d5327d4abfa4ba40db74937aa9a3b7b
+  dataPath: /home/container
+  tmpfs: [/tmp]
+  env:
+    WINEPREFIX: /home/container/.wine
+    WINEARCH: win64
+    WINEDEBUG: -all
+    WINEDLLOVERRIDES: mscoree,mshtml=;winemenubuilder.exe=d
+    DISPLAY: ':99'
+    GAME_PORT: '{{ (.Port "game").Container }}'
+    QUERY_PORT: '{{ (.Port "query").Container }}'
+    BLOBSYNC_PORT: '{{ (.Port "blobsync").Container }}'
+    SKIP_NETWORK_TEST: '{{ ternary "true" "false" (.SettingBool "skipNetworkTest") }}'
+  # The server logs to stdout, so it is exec'd directly and gets the stop signal itself (Wine turns
+  # SIGINT into CTRL_C_EVENT).
+  shell: |
+    if [ ! -f "$WINEPREFIX/system.reg" ]; then
+      echo "The Wine prefix is missing. Reinstall the server to recreate it." >&2
+      exit 1
+    fi
+    Xvfb :99 -screen 0 1024x768x16 -nolisten tcp >/dev/null 2>&1 &
+    i=0
+    while [ ! -e /tmp/.X11-unix/X99 ] && [ "$i" -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+    exec wine ./SonsOfTheForestDS.exe -userdatapath /home/container/serverconfig \
+      -dedicatedserver.IpAddress 0.0.0.0 \
+      -dedicatedserver.GamePort "$GAME_PORT" \
+      -dedicatedserver.QueryPort "$QUERY_PORT" \
+      -dedicatedserver.BlobSyncPort "$BLOBSYNC_PORT" \
+      -dedicatedserver.SkipNetworkAccessibilityTest "$SKIP_NETWORK_TEST" \
+      -dedicatedserver.LogFilesEnabled true \
+      -dedicatedserver.TimestampLogFilenames true
+  console:
+    via: none
+  stop:
+    via: signal
+    signal: SIGINT
+    timeoutSeconds: 60
+  ready:
+    pattern: '#DSL Dedicated server loaded\.'
+
+install:
+  # Steamworks redistributable (steamclient64.dll and friends), installed like the pelican yolks do.
+  - kind: steamcmd
+    appId: 1007
+    platform: windows
+  - kind: steamcmd
+    appId: 2465200
+    platform: windows
+  # Wine prefix with the runtime the egg installs at every boot (WINETRICKS_RUN). The egg also lists
+  # wine-mono, but mscoree is disabled at runtime (yolk default WINEDLLOVERRIDES), so it is left out.
+  # winetricks skips verbs that are already installed.
+  - kind: script
+    image: ghcr.io/pelican-eggs/yolks:wine_latest@sha256:1d4cc591785abceb9faae159dcf6ce686d5327d4abfa4ba40db74937aa9a3b7b
+    env:
+      WINEPREFIX: /home/container/.wine
+      WINEARCH: win64
+      WINEDEBUG: -all
+      WINEDLLOVERRIDES: mscoree,mshtml=;winemenubuilder.exe=d
+      XDG_CACHE_HOME: /tmp/winetricks-cache
+      TRICKS: vcrun2019
+    shell: |
+      set -eu
+      mkdir -p "$WINEPREFIX"
+      Xvfb :98 -screen 0 1024x768x16 -nolisten tcp >/dev/null 2>&1 &
+      xvfb=$!
+      export DISPLAY=:98
+      wineboot --init
+      for trick in $TRICKS; do
+        winetricks -q "$trick"
+      done
+      wineserver -w
+      kill "$xvfb" 2>/dev/null || true
+      rm -rf "$XDG_CACHE_HOME"
+
+query:
+  protocol: a2s
+  port: query
+
+ports:
+  - { identifier: game,     protocol: UDP, default: 8766,  group: 0 }
+  - { identifier: query,    protocol: UDP, default: 27016, group: 1 }
+  - { identifier: blobsync, protocol: UDP, default: 9700,  group: 2 }
+
+settings:
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Mein Sons of the Forest Server
+    validation: { required: true, minLength: 3, maxLength: 60 }
+  - key: password
+    name: { de: Server-Passwort, en: Server password }
+    description: Leer lassen für einen Server ohne Passwort.
+    type: HIDDENSTRING
+    validation: { maxLength: 40 }
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '8'
+    validation: { integer: true, min: 1, max: 8 }
+  - key: gameMode
+    name: { de: Spielmodus, en: Game mode }
+    description: Gilt nur für neue Spielstände. "Benutzerdefiniert" liest CustomGameModeSettings aus serverconfig/dedicatedserver.cfg.
+    type: STRINGENUM
+    default: Normal
+    category: gameplay
+    values:
+      - { value: Normal }
+      - { value: Hard, label: Schwer }
+      - { value: HardSurvival, label: Hard Survival }
+      - { value: Peaceful, label: Friedlich }
+      - { value: Custom, label: Benutzerdefiniert }
+  - key: saveMode
+    name: { de: Spielstand, en: Save mode }
+    type: STRINGENUM
+    default: Continue
+    category: world
+    values:
+      - { value: Continue, label: Fortsetzen }
+      - { value: Overwrite, label: Neu beginnen (überschreibt den Slot) }
+  - key: saveSlot
+    name: { de: Speicherplatz, en: Save slot }
+    description: Nummer des Spielstands in serverconfig/Saves. Hochgeladene Spielstände vom PC behalten ihre Nummer.
+    type: NUMBER
+    default: '1'
+    validation: { integer: true, min: 1, max: 9999999999 }
+    category: world
+  - key: saveInterval
+    name: { de: Speicherintervall (Sekunden), en: Save interval (seconds) }
+    type: NUMBER
+    default: '600'
+    validation: { integer: true, min: 60 }
+    category: world
+  - key: treeRegrowth
+    name: { de: Bäume wachsen nach, en: Tree regrowth }
+    type: BOOLEAN
+    default: '1'
+    category: gameplay
+  - key: structureDamage
+    name: { de: Gebäudeschaden, en: Structure damage }
+    type: BOOLEAN
+    default: '1'
+    category: gameplay
+  - key: owners
+    name: { de: Besitzer (SteamID64), en: Owners (SteamID64) }
+    description: SteamID64 der Server-Besitzer mit Adminrechten. Wird bei jedem Start nach serverconfig/ownerswhitelist.txt geschrieben.
+    type: STRINGLIST
+    default: '[]'
+    category: admin
+  - key: skipNetworkTest
+    name: { de: Netzwerktest überspringen, en: Skip network test }
+    description: Überspringt die Prüfung, ob der Server von außen erreichbar ist.
+    type: BOOLEAN
+    default: '1'
+    category: network
+
+config:
+  - path: serverconfig/dedicatedserver.cfg
+    format: json
+    values:
+      ServerName: '{{ .Setting "name" }}'
+      Password: '{{ .Setting "password" }}'
+      MaxPlayers: '{{ .Setting "maxPlayers" }}'
+      GameMode: '{{ .Setting "gameMode" }}'
+      SaveMode: '{{ .Setting "saveMode" }}'
+      SaveSlot: '{{ .Setting "saveSlot" }}'
+      SaveInterval: '{{ .Setting "saveInterval" }}'
+      LanOnly: 'false'
+      GameSettings.Gameplay\.TreeRegrowth: '{{ .SettingBool "treeRegrowth" }}'
+      GameSettings.Structure\.Damage: '{{ .SettingBool "structureDamage" }}'
+
+hooks:
+  postInstall:
+    # Without it the self-test creates the file, logs "Please restart the server." and hangs.
+    - writeFile: { path: steam_appid.txt, content: '1326470', mode: '0644', ifMissing: true }
+  preStart:
+    - when: { not: { setting: owners, in: ['', '[]'] } }
+      writeFile:
+        path: serverconfig/ownerswhitelist.txt
+        content: '{{ range .SettingList "owners" }}{{ trim . }}{{ "\n" }}{{ end }}'
+
+protectedFiles:
+  - { path: /SonsOfTheForestDS.exe, readOnly: true }
+  - { path: /SonsOfTheForestDS_Data/**, readOnly: true }
+
+# Game files are recreated by install; the Wine prefix needs a reinstall after a restore.
+backupIgnore:
+  - SonsOfTheForestDS_Data/**
+  - '*.exe'
+  - '*.dll'
+  - steamapps/**
+  - .wine/**
+  - serverconfig/logs/**
+
+requirements:
+  minCpuThreads: 2
+  minRam: 8192
+  minDiskspace: 15

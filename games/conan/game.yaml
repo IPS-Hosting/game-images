@@ -1,0 +1,144 @@
+# Conan Exiles — new game (Enhanced, native Linux server), derived from the Pelican egg (games-steamcmd conan_exiles).
+# STATUS: validated (boot-test risks: config directory name, ready pattern)
+#
+# Since the Enhanced update the dedicated server ships a native Linux binary, so no Wine runtime
+# is needed (the legacy egg used Wine).
+apiVersion: 1
+
+short: conan
+name: Conan Exiles
+steamAppId: 440900
+tags: [survival, open-world, building, crafting, pvp, moddable]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:conan_exiles/egg-conan-exiles-enhanced.yaml
+    license: MIT
+
+run:
+  image: ghcr.io/parkervcp/steamcmd:debian@sha256:c59cff8cd1202c8f283b8b36344166a9fc16e3f781aa1be7d10187cd9d7566d8
+  dataPath: /home/container
+  exec:
+    - ./ConanSandbox/Binaries/Linux/ConanSandboxServer-Linux-Shipping
+    - ConanSandbox
+    - '-Port={{ (.Port "game").Container }}'
+    - '-QueryPort={{ (.Port "query").Container }}'
+    - '-RconPort={{ (.Port "rcon").Container }}'
+    - '-ServerName={{ .Setting "name" }}'
+    - '-ServerPassword={{ .Setting "password" }}'
+    - '-MaxPlayers={{ .Setting "maxPlayers" }}'
+    - -console
+    - -log
+  console:
+    via: rcon
+    port: rcon
+    passwordSetting: rconPassword
+  stop:
+    via: signal
+    signal: SIGINT
+    timeoutSeconds: 60
+  ready:
+    pattern: 'Started SourceServerQueries'
+
+install:
+  - kind: steamcmd
+    appId: 443030
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # Steamworks SDK redistributable: provides linux64/steamclient.so for ~/.steam/sdk64.
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
+    steamSdk: true
+
+query:
+  protocol: a2s
+  port: query
+
+ports:
+  - { identifier: game,  protocol: UDP, default: 7777,  group: 0 }
+  - { identifier: raw,   protocol: UDP, default: 7778,  group: 0 }
+  - { identifier: query, protocol: UDP, default: 27015, group: 1 }
+  - { identifier: rcon,  protocol: TCP, default: 25575, group: 2 }
+
+settings:
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Mein Conan Exiles Server
+    validation: { required: true, minLength: 3, maxLength: 64 }
+  - key: password
+    name: { de: Server-Passwort, en: Server password }
+    description: { de: Leer lassen für einen öffentlichen Server., en: Leave empty for a public server. }
+    type: HIDDENSTRING
+    validation: { maxLength: 64, pattern: '[^ ]*' }
+  - key: adminPassword
+    name: { de: Admin-Passwort, en: Admin password }
+    description: { de: Im Spiel über die Einstellungen als Admin anmelden., en: Log in as admin in game via the settings. }
+    type: HIDDENSTRING
+    category: admin
+    generate: { length: 16 }
+    validation: { maxLength: 64, pattern: '[^ ]*' }
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '40'
+    validation: { integer: true, min: 1, max: 70 }
+  - key: pvp
+    name: PvP
+    type: BOOLEAN
+    default: '0'
+    category: gameplay
+  - key: rconPassword
+    name: { de: RCON-Passwort, en: RCON password }
+    description: { de: Wird für die Panel-Konsole benötigt., en: Required for the panel console. }
+    type: HIDDENSTRING
+    category: admin
+    generate: { length: 24 }
+    validation: { required: true, minLength: 8, maxLength: 64, pattern: '[A-Za-z0-9]+' }
+  - key: betaBranch
+    name: Beta-Branch
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: { de: Beta-Passwort, en: Beta password }
+    type: HIDDENSTRING
+    category: steamBeta
+
+# TODO(M3): verify the config directory of the Enhanced Linux server (LinuxServer vs WindowsServer).
+config:
+  - path: ConanSandbox/Saved/Config/LinuxServer/Game.ini
+    format: ini
+    values:
+      RconPlugin.RconEnabled: '1'
+      RconPlugin.RconPassword: '{{ .Setting "rconPassword" }}'
+      RconPlugin.RconPort: '{{ (.Port "rcon").Container }}'
+  - path: ConanSandbox/Saved/Config/LinuxServer/ServerSettings.ini
+    format: ini
+    values:
+      ServerSettings.AdminPassword: '{{ .Setting "adminPassword" }}'
+      ServerSettings.MaxPlayers: '{{ .Setting "maxPlayers" }}'
+      ServerSettings.PVPEnabled: '{{ ternary "True" "False" (.SettingBool "pvp") }}'
+
+hooks:
+  postInstall:
+    - ensureDir: { path: ConanSandbox/Saved/Config/LinuxServer }
+
+protectedFiles:
+  - { path: /ConanSandbox/Binaries/**, readOnly: true }
+  - { path: /ConanSandbox/Content/**, readOnly: true }
+  - { path: /Engine/**, readOnly: true }
+  - { path: /steamworks/**, readOnly: true }
+
+backupIgnore:
+  - ConanSandbox/Binaries/**
+  - ConanSandbox/Content/**
+  - Engine/**
+  - steamapps/**
+  - steamworks/**
+  - ConanSandbox/Saved/Logs/**
+
+requirements:
+  minCpuThreads: 2
+  minRam: 6144
+  minDiskspace: 35

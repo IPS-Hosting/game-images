@@ -1,0 +1,202 @@
+# Enshrouded — new game, Windows-only dedicated server under Proton, written from the official docs.
+# STATUS: boot-tested (2026-11-27, game2)
+#
+# GE-Proton comes from the pelican steamcmd:proton yolk. Ports, start command, ready line and
+# config keys follow the official server documentation and the pelican egg
+# (enshrouded/egg-enshrouded.yaml at the pinned commit). That egg is AGPL licensed, unlike the
+# rest of the egg repository, so this file is written by hand from the documented facts and
+# records the egg as a manual reference only.
+# Wine/Proton runtime contract (prefix, tmpfs, display, stop): games/enshrouded/README.md.
+apiVersion: 1
+
+short: enshrouded
+name: Enshrouded
+steamAppId: 1203620
+tags: [survival, crafting, building, co-op, open-world]
+
+sources:
+  - kind: manual
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:enshrouded/egg-enshrouded.yaml
+
+run:
+  image: ghcr.io/pelican-eggs/steamcmd:proton@sha256:099a9eba9b0e623c124680fd011948d09b2f5b24f49b0776b5821ff35e5b2530
+  dataPath: /home/container
+  tmpfs: [/tmp]
+  env:
+    STEAM_COMPAT_CLIENT_INSTALL_PATH: /home/container/.steam/steam
+    STEAM_COMPAT_DATA_PATH: /home/container/.steam/steam/steamapps/compatdata/2278520
+    WINEDEBUG: -all
+    WINEDLLOVERRIDES: winemenubuilder.exe=d
+    DISPLAY: ':99'
+  # The server logs to logs/enshrouded_server.log only, so the log is followed on stdout (console,
+  # ready pattern). `proton run` is a Python launcher whose child processes do not get the stop
+  # signal, so SIGINT/SIGTERM are translated into SIGINT for the server process itself (Wine turns it
+  # into CTRL_C_EVENT, the server saves and exits), and the shell waits until it is gone.
+  shell: |
+    Xvfb :99 -screen 0 1024x768x16 -nolisten tcp >/dev/null 2>&1 &
+    i=0
+    while [ ! -e /tmp/.X11-unix/X99 ] && [ "$i" -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+
+    game_pids() {
+      for p in /proc/[0-9]*; do
+        argv0=$(tr '\0' '\n' 2>/dev/null < "$p/cmdline" | head -n 1)
+        case "$argv0" in
+          *steam.exe*) ;;
+          *enshrouded_server.exe*) echo "${p#/proc/}" ;;
+        esac
+      done
+    }
+    trap 'for pid in $(game_pids); do kill -INT "$pid" 2>/dev/null; done' INT TERM
+
+    mkdir -p logs
+    proton run ./enshrouded_server.exe &
+    launcher=$!
+    tail -c0 -F logs/enshrouded_server.log --pid="$launcher" 2>/dev/null &
+
+    status=0
+    while :; do
+      wait "$launcher"; status=$?
+      kill -0 "$launcher" 2>/dev/null || break
+    done
+    while [ -n "$(game_pids)" ]; do sleep 1; done
+    exit "$status"
+  console:
+    via: none
+  stop:
+    via: signal
+    signal: SIGINT
+    timeoutSeconds: 60
+  ready:
+    pattern: "\\[Session\\] 'HostOnline' \\(up\\)!"
+
+install:
+  # Steamworks redistributable (steamclient64.dll and friends), installed like the pelican yolks do.
+  - kind: steamcmd
+    appId: 1007
+    platform: windows
+  - kind: steamcmd
+    appId: 2278520
+    platform: windows
+  # Proton bridges the Steam API (lsteamclient) to the Linux steamclient.so; the redistributable has
+  # no current one ("No SteamClient023"). Copied from the installer's steamcmd, as the egg does.
+  - kind: script
+    shell: |
+      set -eu
+      cd "$IPS_DATA_PATH"
+      for dir in .steam/sdk64 .steam/steam/linux64; do
+        mkdir -p "$dir"
+        cp -f "$STEAMCMD_DIR/linux64/steamclient.so" "$dir/steamclient.so"
+      done
+
+query:
+  protocol: a2s
+  port: query
+
+# The game port is always the query port minus one, so both share a group.
+ports:
+  - { identifier: game,  protocol: UDP, default: 15636, group: 0 }
+  - { identifier: query, protocol: UDP, default: 15637, group: 0 }
+
+settings:
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Mein Enshrouded Server
+    validation: { required: true, minLength: 3, maxLength: 64 }
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    description: Jeder Spieler erhöht den RAM- und CPU-Bedarf des Servers.
+    type: NUMBER
+    default: '16'
+    validation: { integer: true, min: 1, max: 16 }
+  - key: gameSettingsPreset
+    name: { de: Schwierigkeit, en: Difficulty preset }
+    description: Bei "Benutzerdefiniert" gelten die Werte unter gameSettings in enshrouded_server.json.
+    type: STRINGENUM
+    default: Default
+    category: gameplay
+    values:
+      - { value: Default, label: Standard }
+      - { value: Relaxed, label: Entspannt }
+      - { value: Hard, label: Schwer }
+      - { value: Survival, label: Survival }
+      - { value: Custom, label: Benutzerdefiniert }
+  - key: adminPassword
+    name: { de: Admin-Passwort, en: Admin password }
+    description: Spieler, die dieses Passwort eingeben, können kicken, bannen und alle Inventare und Basen bearbeiten.
+    type: HIDDENSTRING
+    generate: { length: 16 }
+    validation: { required: true, minLength: 4, maxLength: 64 }
+    category: admin
+  - key: friendPassword
+    name: { de: Freunde-Passwort, en: Friend password }
+    description: Spieler mit diesem Passwort dürfen Basen bearbeiten und Truhen nutzen, aber nicht erweitern.
+    type: HIDDENSTRING
+    generate: { length: 12 }
+    validation: { required: true, minLength: 4, maxLength: 64 }
+    category: admin
+  - key: guestPassword
+    name: { de: Gast-Passwort, en: Guest password }
+    description: Gäste dürfen spielen, aber keine Basen bearbeiten oder fremde Truhen öffnen.
+    type: HIDDENSTRING
+    generate: { length: 12 }
+    validation: { required: true, minLength: 4, maxLength: 64 }
+    category: admin
+
+# The server writes the complete file on first start; until then ips-init creates it from the
+# default below, so the user groups exist before the passwords are set. Group order is fixed:
+# 0 = Admin, 1 = Friend, 2 = Guest.
+config:
+  - path: enshrouded_server.json
+    format: json
+    createFrom: .ips-defaults/enshrouded_server.json
+    values:
+      name: '{{ .Setting "name" }}'
+      ip: 0.0.0.0
+      queryPort: '{{ (.Port "query").Container }}'
+      slotCount: '{{ .Setting "maxPlayers" }}'
+      saveDirectory: ./savegame
+      logDirectory: ./logs
+      gameSettingsPreset: '{{ .Setting "gameSettingsPreset" }}'
+      userGroups.0.password: '{{ .Setting "adminPassword" }}'
+      userGroups.1.password: '{{ .Setting "friendPassword" }}'
+      userGroups.2.password: '{{ .Setting "guestPassword" }}'
+
+hooks:
+  postInstall:
+    - writeFile:
+        path: .ips-defaults/enshrouded_server.json
+        content: |
+          {
+            "name": "Enshrouded Server",
+            "saveDirectory": "./savegame",
+            "logDirectory": "./logs",
+            "ip": "0.0.0.0",
+            "queryPort": 15637,
+            "slotCount": 16,
+            "gameSettingsPreset": "Default",
+            "userGroups": [
+              { "name": "Admin", "password": "", "canKickBan": true, "canAccessInventories": true, "canEditBase": true, "canExtendBase": true, "reservedSlots": 0 },
+              { "name": "Friend", "password": "", "canKickBan": false, "canAccessInventories": true, "canEditBase": true, "canExtendBase": false, "reservedSlots": 0 },
+              { "name": "Guest", "password": "", "canKickBan": false, "canAccessInventories": false, "canEditBase": false, "canExtendBase": false, "reservedSlots": 0 }
+            ]
+          }
+  preStart:
+    - ensureDir: { path: .steam/steam/steamapps/compatdata/2278520 }
+
+protectedFiles:
+  - { path: /enshrouded_server.exe, readOnly: true }
+  - { path: /.ips-defaults/**, readOnly: true }
+
+# Game files and the Proton prefix are recreated by install and the first start.
+backupIgnore:
+  - '*.exe'
+  - '*.dll'
+  - steamapps/**
+  - .steam/**
+  - logs/**
+
+requirements:
+  minCpuThreads: 4
+  minRam: 6144
+  minDiskspace: 10

@@ -1,5 +1,8 @@
-# Counter-Strike 2 — replaces the discontinued CS:GO game. New game (no production data);
-# existing CS:GO servers move over by switching the game.
+# Counter-Strike 2 — new game, derived from the Pelican egg (games-steamcmd counter_strike_2).
+# STATUS: validated
+#
+# Replaces the discontinued CS:GO game (no production data); existing CS:GO servers move over by
+# switching the game.
 apiVersion: 1
 
 short: cs2
@@ -7,32 +10,17 @@ name: Counter-Strike 2
 steamAppId: 730
 tags: [action, fps, multiplayer, pvp, tactical]
 
-source:
-  from: egg
-  ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:counter_strike/counter_strike_2/egg-counter--strike2.yaml
-  license: MIT
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:counter_strike/counter_strike_2/egg-counter--strike2.yaml
+    license: MIT
 
-requires:
-  engine: 1
-
-runtime:
+run:
   image: ghcr.io/parkervcp/steamcmd:sniper@sha256:99d436be50b2c57e94e922597adca0f327a8fcc29204520be929c26efb1f4810
   dataPath: /home/container
-
-install:
-  - kind: steamcmd
-    appId: 730
-  # The dedicated server loads the steam client library from ~/.steam/sdk64. The installer
-  # image provides steamcmd under $STEAMCMD_DIR (SPEC §3.2).
-  - kind: script
-    shell: |
-      mkdir -p .steam/sdk64
-      cp "$STEAMCMD_DIR/linux64/steamclient.so" .steam/sdk64/steamclient.so
-
-start:
   env:
     LD_LIBRARY_PATH: /home/container/game/bin/linuxsteamrt64
-  args:
+  exec:
     - ./game/bin/linuxsteamrt64/cs2
     - -dedicated
     - -ip
@@ -44,9 +32,9 @@ start:
     - -maxplayers
     - '{{ .Setting "maxPlayers" }}'
     - arg: -insecure
-      when: '{{ not (.SettingBool "vac") }}'
+      when: { setting: vac, truthy: false }
     - arg: -usercon
-      when: '{{ ne (.Setting "rconPassword") "" }}'
+      when: { setting: rconPassword, notEquals: '' }
     - +game_type
     - '{{ .Setting "gameType" }}'
     - +game_mode
@@ -61,17 +49,20 @@ start:
       value: '{{ .Setting "rconPassword" }}'
     - arg: +sv_setsteamaccount
       value: '{{ .Setting "gslt" }}'
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: quit
+    timeoutSeconds: 15
+  ready:
+    pattern: 'Connection to Steam servers successful'
 
-console:
-  via: stdin
-
-stop:
-  via: command
-  command: quit
-  timeoutSeconds: 15
-
-ready:
-  pattern: 'Connection to Steam servers successful'
+install:
+  # steamSdk links linux64/steamclient.so to ~/.steam/sdk64, where the server loads it.
+  - kind: steamcmd
+    appId: 730
+    steamSdk: true
 
 query:
   protocol: a2s
@@ -84,45 +75,34 @@ ports:
 
 settings:
   - key: name
-    name: Servername
+    name: { de: Servername, en: Server name }
     type: STRING
     default: Mein CS2 Server
-    validation: string|required|min:3|max:64
-    category: Allgemein
-    sortOrder: 0
+    validation: { required: true, minLength: 3, maxLength: 64 }
   - key: password
-    name: Server-Passwort
+    name: { de: Server-Passwort, en: Server password }
     description: Leer lassen für einen öffentlichen Server.
     type: HIDDENSTRING
-    validation: string|max:64
-    category: Allgemein
-    sortOrder: 10
+    validation: { maxLength: 64 }
   - key: maxPlayers
-    name: Maximale Spieler
+    name: { de: Maximale Spieler, en: Max players }
     type: NUMBER
     default: '12'
-    validation: numeric|min:2|max:64
-    category: Allgemein
-    sortOrder: 20
+    validation: { integer: true, min: 2, max: 64 }
   - key: gslt
     name: Game Server Login Token
     description: Ohne Token ist der Server nur über die lokale Verbindung erreichbar. Token erstellen unter https://steamcommunity.com/dev/managegameservers (App-ID 730).
     type: HIDDENSTRING
-    validation: string|max:64
-    category: Allgemein
-    sortOrder: 30
+    validation: { maxLength: 64 }
   - key: vac
-    name: VAC aktiviert
+    name: { de: VAC aktiviert, en: VAC enabled }
     type: BOOLEAN
     default: '1'
-    category: Allgemein
-    sortOrder: 40
   - key: map
-    name: Startkarte
+    name: { de: Startkarte, en: Start map }
     type: STRINGENUM
     default: de_dust2
-    category: Spielmodus und Karten
-    sortOrder: 0
+    category: gameplay
     values:
       - { value: de_dust2 }
       - { value: de_mirage }
@@ -135,45 +115,44 @@ settings:
       - { value: cs_office }
       - { value: cs_italy }
   - key: gameType
-    name: Spieltyp
+    name: { de: Spieltyp, en: Game type }
     type: NUMBERENUM
     default: '0'
-    category: Spielmodus und Karten
-    sortOrder: 10
+    category: gameplay
     values:
       - { value: '0', label: Klassisch }
       - { value: '1', label: Waffenspiele }
       - { value: '3', label: Benutzerdefiniert }
   - key: gameMode
-    name: Spielmodus
+    name: { de: Spielmodus, en: Game mode }
     description: 'Klassisch: 0 = Casual, 1 = Competitive, 2 = Wingman. Waffenspiele: 0 = Arms Race, 2 = Deathmatch.'
     type: NUMBERENUM
     default: '1'
-    category: Spielmodus und Karten
-    sortOrder: 20
+    category: gameplay
     values:
       - { value: '0', label: Casual / Arms Race }
       - { value: '1', label: Competitive }
       - { value: '2', label: Wingman / Deathmatch }
   - key: rconPassword
-    name: RCON-Passwort
+    name: { de: RCON-Passwort, en: RCON password }
     description: Leer lassen, um RCON zu deaktivieren.
     type: HIDDENSTRING
-    validation: string|max:64
-    category: RCON
-    sortOrder: 0
+    validation: { maxLength: 64 }
+    category: admin
 
 preconditions:
-  - check: '{{ ne (.Setting "gslt") "" }}'
+  - check: { setting: gslt, notEquals: '' }
     severity: warning
     message: Ohne Game Server Login Token erscheint der Server nicht in der Serverliste und Spieler können nur per IP beitreten.
 
-filePermissions:
-  - { match: /game/bin/**, allowWrite: false, priority: 10 }
+protectedFiles:
+  - { path: /game/bin/**, readOnly: true }
 
-flags:
-  steamConnect: true
-  showMap: true
+backupIgnore:
+  - game/bin/**
+  - game/core/*.vpk
+  - game/csgo/*.vpk
+  - steamapps/**
 
 requirements:
   minCpuThreads: 2

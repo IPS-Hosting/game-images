@@ -1,0 +1,158 @@
+# Terraria — new game (vanilla dedicated server), based on the Pelican egg.
+# STATUS: boot-tested (2026-11-27, game2)
+#
+# The server is a pinned download from terraria.org; updates are a reviewed version bump of the
+# install stage (url, checksum) and of the version directory in run.shell.
+# The zip stores no executable bits, so the start script sets them before exec.
+apiVersion: 1
+
+short: terraria
+name: Terraria
+steamAppId: 105600
+tags: [adventure, sandbox, survival, crafting, co-op, building]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-standalone@0fb3f0c760a4e237593abd9a25bee6225b9f698f:terraria/vanilla/egg-terraria-vanilla.json
+    license: MIT
+
+run:
+  image: ghcr.io/pelican-eggs/yolks:debian@sha256:f4e18fadc9b2f2d1a300bffee78e5b87cccde4544e512acc36a1d370c1340121
+  dataPath: /home/container
+  tmpfs: [/tmp]
+  shell: |
+    cd server/1461/Linux
+    chmod u+x TerrariaServer.bin.x86_64
+    export MONO_IOMAP=all
+    exec ./TerrariaServer.bin.x86_64 -config "$HOME/serverconfig.txt"
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: exit          # saves the world, then quits
+    timeoutSeconds: 60
+  ready:
+    pattern: "Type 'help' for a list of commands"
+
+install:
+  # Terraria 1.4.6.1 (terraria-server-1461.zip). Contains 1461/{Linux,Windows,Mac}.
+  - kind: download
+    url: https://terraria.org/api/download/pc-dedicated-server/terraria-server-1461.zip
+    checksum: sha256:0fb586dfbf2bcee448612c90768648d89532eed6ab345aadbbb0829f9d447476
+    dest: server
+    extract: { format: zip }
+
+hooks:
+  postInstall:
+    - ensureDir: { path: saves/Worlds }
+
+players:
+  joinPattern: '^(?P<name>.+) has joined\.$'
+  leavePattern: '^(?P<name>.+) has left\.$'
+
+ports:
+  - { identifier: game, protocol: TCP, default: 7777, group: 0 }
+
+settings:
+  - key: worldName
+    name: { de: Weltname, en: World name }
+    description:
+      de: Dateiname der Welt in saves/Worlds. Ein neuer Name erzeugt beim Start eine neue Welt.
+      en: File name of the world in saves/Worlds. A new name creates a new world at start.
+    type: STRING
+    default: world
+    validation: { required: true, minLength: 1, maxLength: 64, pattern: '[A-Za-z0-9 _.-]+' }
+    category: world
+  - key: worldSize
+    name: { de: Weltgröße, en: World size }
+    description:
+      de: Nur beim Erzeugen einer neuen Welt verwendet.
+      en: Used only when a new world is created.
+    type: NUMBERENUM
+    default: '2'
+    values:
+      - { value: '1', label: { de: Klein, en: Small } }
+      - { value: '2', label: { de: Mittel, en: Medium } }
+      - { value: '3', label: { de: Groß, en: Large } }
+    category: world
+  - key: difficulty
+    name: { de: Schwierigkeit, en: Difficulty }
+    description:
+      de: Nur beim Erzeugen einer neuen Welt verwendet.
+      en: Used only when a new world is created.
+    type: NUMBERENUM
+    default: '0'
+    values:
+      - { value: '0', label: { de: Klassisch, en: Classic } }
+      - { value: '1', label: { de: Experte, en: Expert } }
+      - { value: '2', label: { de: Meister, en: Master } }
+      - { value: '3', label: { de: Reise, en: Journey } }
+    category: world
+  - key: seed
+    name: { de: Seed, en: Seed }
+    description:
+      de: Nur beim Erzeugen einer neuen Welt verwendet. Leer = zufällig.
+      en: Used only when a new world is created. Empty means random.
+    type: STRING
+    validation: { maxLength: 64 }
+    category: world
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '8'
+    validation: { required: true, integer: true, min: 1, max: 255 }
+  - key: password
+    name: { de: Server-Passwort, en: Server password }
+    description:
+      de: Leer = kein Passwort.
+      en: Empty means no password.
+    type: HIDDENSTRING
+    validation: { maxLength: 64 }
+  - key: motd
+    name: { de: Begrüßungsnachricht, en: Message of the day }
+    type: STRING
+    default: Willkommen!
+    validation: { maxLength: 128 }
+  - key: secure
+    name: { de: Cheat-Schutz, en: Cheat protection }
+    type: BOOLEAN
+    default: '1'
+    category: admin
+  - key: npcStream
+    name: { de: NPC-Stream, en: NPC stream }
+    description:
+      de: Reduziert das Ruckeln von Gegnern. 0 = aus, Standard 60.
+      en: Reduces enemy skipping. 0 disables it, default 60.
+    type: NUMBER
+    default: '60'
+    validation: { required: true, integer: true, min: 0, max: 60 }
+    category: performance
+
+config:
+  - path: serverconfig.txt
+    format: kv
+    values:
+      worldpath: /home/container/saves/Worlds
+      world: '/home/container/saves/Worlds/{{ .Setting "worldName" }}.wld'
+      worldname: '{{ .Setting "worldName" }}'
+      autocreate: '{{ .Setting "worldSize" }}'
+      difficulty: '{{ .Setting "difficulty" }}'
+      seed: '{{ .Setting "seed" }}'
+      maxplayers: '{{ .Setting "maxPlayers" }}'
+      port: '{{ (.Port "game").Container }}'
+      password: '{{ .Setting "password" }}'
+      motd: '{{ .Setting "motd" }}'
+      secure: '{{ .SettingBool "secure" | boolInt }}'
+      npcstream: '{{ .Setting "npcStream" }}'
+      upnp: '0'
+
+protectedFiles:
+  - { path: /server/**, readOnly: true }
+
+backupIgnore:
+  - server/**
+
+requirements:
+  minCpuThreads: 1
+  minRam: 1024
+  minDiskspace: 2

@@ -1,0 +1,178 @@
+# Icarus — new game, Windows-only dedicated server under Wine, based on the Pelican egg.
+# STATUS: boot-tested (2026-11-27, game2)
+#
+# Runs under the pelican wine_latest yolk. Start arguments, ports and ready line follow the pelican
+# egg; the config file path and keys follow the official server documentation
+# (RocketWerkz/IcarusDedicatedServer wiki).
+# Wine/Proton runtime contract (prefix, tmpfs, display, stop): games/enshrouded/README.md.
+apiVersion: 1
+
+short: icarus
+name: Icarus
+steamAppId: 1149460
+tags: [survival, crafting, co-op, open-world, pve]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:icarus/egg-icarus.yaml
+    license: MIT
+
+run:
+  image: ghcr.io/pelican-eggs/yolks:wine_latest@sha256:1d4cc591785abceb9faae159dcf6ce686d5327d4abfa4ba40db74937aa9a3b7b
+  dataPath: /home/container
+  tmpfs: [/tmp]
+  env:
+    WINEPREFIX: /home/container/.wine
+    WINEARCH: win64
+    WINEDEBUG: -all
+    WINEDLLOVERRIDES: mscoree,mshtml=;winemenubuilder.exe=d
+    DISPLAY: ':99'
+    SERVER_NAME: '{{ .Setting "name" }}'
+    GAME_PORT: '{{ (.Port "game").Container }}'
+    QUERY_PORT: '{{ (.Port "query").Container }}'
+  # The server logs to Icarus/Saved/Logs/Icarus.log, which is followed on stdout (console, ready
+  # pattern). SIGINT/SIGTERM become SIGINT for the server process (Wine: CTRL_C_EVENT, the
+  # prospect is saved); the shell waits until the server is gone.
+  shell: |
+    Xvfb :99 -screen 0 1024x768x16 -nolisten tcp >/dev/null 2>&1 &
+    i=0
+    while [ ! -e /tmp/.X11-unix/X99 ] && [ "$i" -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+
+    game_pids() {
+      for p in /proc/[0-9]*; do
+        argv0=$(tr '\0' '\n' 2>/dev/null < "$p/cmdline" | head -n 1)
+        case "$argv0" in
+          *IcarusServer-Win64-Shipping.exe*) echo "${p#/proc/}" ;;
+        esac
+      done
+    }
+    trap 'for pid in $(game_pids); do kill -INT "$pid" 2>/dev/null; done' INT TERM
+
+    mkdir -p Icarus/Saved/Logs
+    wine ./Icarus/Binaries/Win64/IcarusServer-Win64-Shipping.exe -Log \
+      -SteamServerName="$SERVER_NAME" -PORT="$GAME_PORT" -QueryPort="$QUERY_PORT" &
+    launcher=$!
+    tail -c0 -F Icarus/Saved/Logs/Icarus.log --pid="$launcher" 2>/dev/null &
+
+    status=0
+    while :; do
+      wait "$launcher"; status=$?
+      kill -0 "$launcher" 2>/dev/null || break
+    done
+    while [ -n "$(game_pids)" ]; do sleep 1; done
+    exit "$status"
+  console:
+    via: none
+  stop:
+    via: signal
+    signal: SIGINT
+    timeoutSeconds: 60
+  ready:
+    pattern: 'Game Engine Initialized'
+
+install:
+  # Steamworks redistributable (steamclient64.dll and friends), installed like the pelican yolks do.
+  - kind: steamcmd
+    appId: 1007
+    platform: windows
+  - kind: steamcmd
+    appId: 2089300
+    platform: windows
+
+query:
+  protocol: a2s
+  port: query
+
+ports:
+  - { identifier: game,  protocol: UDP, default: 17777, group: 0 }
+  - { identifier: query, protocol: UDP, default: 27015, group: 1 }
+
+settings:
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Mein Icarus Server
+    validation: { required: true, minLength: 3, maxLength: 64 }
+  - key: password
+    name: { de: Server-Passwort, en: Server password }
+    description: Leer lassen für einen Server ohne Passwort.
+    type: HIDDENSTRING
+    validation: { maxLength: 64 }
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '8'
+    validation: { integer: true, min: 1, max: 8 }
+  - key: adminPassword
+    name: { de: Admin-Passwort, en: Admin password }
+    description: Für /AdminLogin im Spiel. Ohne Passwort erhält jeder Spieler mit /AdminLogin Adminrechte.
+    type: HIDDENSTRING
+    generate: { length: 16 }
+    validation: { maxLength: 64 }
+    category: admin
+  - key: allowNonAdminsToLaunchProspects
+    name: { de: Alle dürfen Prospects starten, en: Anyone can launch prospects }
+    type: BOOLEAN
+    default: '1'
+    category: gameplay
+  - key: allowNonAdminsToDeleteProspects
+    name: { de: Alle dürfen Prospects löschen, en: Anyone can delete prospects }
+    type: BOOLEAN
+    default: '0'
+    category: gameplay
+  - key: resumeProspect
+    name: { de: Letzten Prospect fortsetzen, en: Resume last prospect }
+    description: Lädt beim Start automatisch den zuletzt gespielten Prospect.
+    type: BOOLEAN
+    default: '1'
+    category: world
+  - key: shutdownIfNotJoinedFor
+    name: { de: Zur Lobby ohne Beitritt nach (Sekunden), en: Return to lobby if nobody joins (seconds) }
+    description: Tritt nach dem Start niemand bei, kehrt der Server nach dieser Zeit zur Lobby zurück. -1 = nie.
+    type: NUMBER
+    default: '300'
+    validation: { integer: true, min: -1 }
+    category: advanced
+  - key: shutdownIfEmptyFor
+    name: { de: Zur Lobby wenn leer nach (Sekunden), en: Return to lobby when empty (seconds) }
+    description: Ist der Server leer, kehrt er nach dieser Zeit zur Lobby zurück. -1 = nie.
+    type: NUMBER
+    default: '300'
+    validation: { integer: true, min: -1 }
+    category: advanced
+
+preconditions:
+  - check: { setting: adminPassword, notEquals: '' }
+    severity: warning
+    message: Ohne Admin-Passwort kann jeder Spieler per /AdminLogin Adminrechte erhalten.
+
+config:
+  - path: Icarus/Saved/Config/WindowsServer/ServerSettings.ini
+    format: ini
+    values:
+      /Script/Icarus.DedicatedServerSettings.SessionName: '{{ .Setting "name" }}'
+      /Script/Icarus.DedicatedServerSettings.JoinPassword: '{{ .Setting "password" }}'
+      /Script/Icarus.DedicatedServerSettings.MaxPlayers: '{{ .Setting "maxPlayers" }}'
+      /Script/Icarus.DedicatedServerSettings.AdminPassword: '{{ .Setting "adminPassword" }}'
+      /Script/Icarus.DedicatedServerSettings.ShutdownIfNotJoinedFor: '{{ .Setting "shutdownIfNotJoinedFor" }}'
+      /Script/Icarus.DedicatedServerSettings.ShutdownIfEmptyFor: '{{ .Setting "shutdownIfEmptyFor" }}'
+      /Script/Icarus.DedicatedServerSettings.AllowNonAdminsToLaunchProspects: '{{ ternary "True" "False" (.SettingBool "allowNonAdminsToLaunchProspects") }}'
+      /Script/Icarus.DedicatedServerSettings.AllowNonAdminsToDeleteProspects: '{{ ternary "True" "False" (.SettingBool "allowNonAdminsToDeleteProspects") }}'
+      /Script/Icarus.DedicatedServerSettings.ResumeProspect: '{{ ternary "True" "False" (.SettingBool "resumeProspect") }}'
+
+protectedFiles:
+  - { path: /Icarus/Binaries/**, readOnly: true }
+
+# Game files and the Wine prefix are recreated by install and the first start.
+backupIgnore:
+  - Icarus/Binaries/**
+  - Icarus/Content/**
+  - Engine/**
+  - steamapps/**
+  - .wine/**
+  - Icarus/Saved/Logs/**
+
+requirements:
+  minCpuThreads: 2
+  minRam: 8192
+  minDiskspace: 20

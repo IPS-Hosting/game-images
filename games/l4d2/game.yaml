@@ -1,0 +1,170 @@
+# Left 4 Dead 2 — new game, derived from the Pelican egg (games-steamcmd left4dead_2).
+# STATUS: boot-tested (2026-11-27, game2)
+apiVersion: 1
+
+short: l4d2
+name: Left 4 Dead 2
+steamAppId: 550
+tags: [action, fps, zombies, co-op, pvp, moddable]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:left4dead_2/egg-left4-dead2.json
+    license: MIT
+
+run:
+  image: ghcr.io/parkervcp/games:source@sha256:09d0d14b21b203ec1769fc5db43a0361107f5165d96e815036e7a02bdff31687
+  dataPath: /home/container
+  exec:
+    - ./srcds_run
+    - -game
+    - left4dead2
+    - -console
+    - -norestart
+    - -strictportbind
+    - -port
+    - '{{ (.Port "game").Container }}'
+    - +ip
+    - 0.0.0.0
+    - +map
+    - '{{ .Setting "map" }}'
+    - +hostname
+    - '{{ .Setting "name" }}'
+    - +mp_gamemode
+    - '{{ .Setting "gameMode" }}'
+    - +z_difficulty
+    - '{{ .Setting "difficulty" }}'
+    - +sv_lan
+    - '0'
+    - +sv_allow_lobby_connect_only
+    - '{{ .SettingBool "lobbyOnly" | boolInt }}'
+    - arg: +sv_password
+      value: '{{ .Setting "password" }}'
+    - arg: +rcon_password
+      value: '{{ .Setting "rconPassword" }}'
+    - arg: +sv_setsteamaccount
+      value: '{{ .Setting "gslt" }}'
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: quit
+    timeoutSeconds: 15
+  ready:
+    pattern: 'Connection to Steam servers successful'
+
+# The Linux depot alone fails to install with anonymous login ("Missing configuration"); the
+# egg forces the Windows platform. Installing the Windows platform first and then Linux is the
+# common workaround.
+install:
+  - kind: steamcmd
+    appId: 222860
+    platform: windows
+  # validate: without it the second pass reports "already up to date" and skips the Linux depot
+  # (no srcds_run) whenever the Windows pass succeeded.
+  - kind: steamcmd
+    appId: 222860
+    platform: linux
+    extraArgs: [validate]
+  # Steamworks SDK redistributable: provides steamclient.so for ~/.steam/sdk32 and sdk64.
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
+    steamSdk: true
+
+hooks:
+  postInstall:
+    # steamSdk links .steam/sdk32 to steamworks/linux32/steamclient.so, but app 1007 has its 32-bit
+    # library at steamworks/steamclient.so (srcds: "Unable to load Steam support library").
+    - symlink:
+        target: steamworks/steamclient.so
+        link: .steam/sdk32/steamclient.so
+
+query:
+  protocol: a2s
+  port: game
+
+ports:
+  - { identifier: game, protocol: UDP, default: 27015, group: 0 }
+  - { identifier: rcon, protocol: TCP, default: 27015, group: 0 }
+
+settings:
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Mein Left 4 Dead 2 Server
+    validation: { required: true, minLength: 3, maxLength: 64 }
+  - key: password
+    name: { de: Server-Passwort, en: Server password }
+    description: { de: Leer lassen für einen öffentlichen Server., en: Leave empty for a public server. }
+    type: HIDDENSTRING
+    validation: { maxLength: 64 }
+  - key: map
+    name: { de: Startkarte, en: Start map }
+    description: { de: 'z. B. c1m1_hotel, c2m1_highway, c5m1_waterfront, c8m1_apartment.', en: 'e.g. c1m1_hotel, c2m1_highway, c5m1_waterfront, c8m1_apartment.' }
+    type: STRING
+    default: c1m1_hotel
+    category: gameplay
+    validation: { required: true, maxLength: 64, pattern: '[A-Za-z0-9_-]+' }
+  - key: gameMode
+    name: { de: Spielmodus, en: Game mode }
+    type: STRINGENUM
+    default: coop
+    category: gameplay
+    values:
+      - { value: coop, label: { de: Kampagne, en: Campaign } }
+      - { value: realism, label: { de: Realismus, en: Realism } }
+      - { value: versus, label: Versus }
+      - { value: survival, label: { de: Überleben, en: Survival } }
+      - { value: scavenge, label: { de: Plündern, en: Scavenge } }
+  - key: difficulty
+    name: { de: Schwierigkeit, en: Difficulty }
+    type: STRINGENUM
+    default: Normal
+    category: gameplay
+    values:
+      - { value: Easy, label: { de: Leicht, en: Easy } }
+      - { value: Normal, label: { de: Normal, en: Normal } }
+      - { value: Hard, label: { de: Fortgeschritten, en: Advanced } }
+      - { value: Impossible, label: { de: Experte, en: Expert } }
+  - key: lobbyOnly
+    name: { de: Nur über Lobby beitreten, en: Lobby connections only }
+    description: { de: 'Deaktivieren, damit Spieler direkt per IP beitreten können.', en: Disable to let players connect directly via IP. }
+    type: BOOLEAN
+    default: '0'
+    category: network
+  - key: gslt
+    name: Game Server Login Token
+    description: { de: 'Optional. Token erstellen unter https://steamcommunity.com/dev/managegameservers (App-ID 550).', en: 'Optional. Create a token at https://steamcommunity.com/dev/managegameservers (app id 550).' }
+    type: HIDDENSTRING
+    category: general
+    validation: { maxLength: 64, pattern: '[A-Za-z0-9]*' }
+  - key: rconPassword
+    name: { de: RCON-Passwort, en: RCON password }
+    description: { de: 'Leer lassen, um RCON zu deaktivieren.', en: Leave empty to disable RCON. }
+    type: HIDDENSTRING
+    category: admin
+    validation: { maxLength: 64 }
+
+preconditions:
+  - check: { setting: gslt, matches: '\S' }
+    severity: warning
+    message: Ohne Game Server Login Token läuft der Server mit einem anonymen Konto ohne feste Steam-ID. Für öffentliche Server wird ein Token empfohlen.
+
+protectedFiles:
+  - { path: /srcds_run, readOnly: true }
+  - { path: /srcds_linux, readOnly: true }
+  - { path: /bin/**, readOnly: true }
+  - { path: /steamworks/**, readOnly: true }
+
+backupIgnore:
+  - bin/**
+  - left4dead2/*.vpk
+  - left4dead2/bin/**
+  - steamapps/**
+  - steamworks/**
+
+requirements:
+  minCpuThreads: 1
+  minRam: 1024
+  minDiskspace: 15

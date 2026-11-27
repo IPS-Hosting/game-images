@@ -1,0 +1,141 @@
+# BungeeCord / Waterfall / Velocity — Minecraft proxy; migration target for the existing platform game.
+# Legacy sources:
+#   - ipsd game/bungeecord.go (itzg/bungeecord image per javaVersion, environment, JVM heap from
+#     box RAM, server list ping query on the query port, data mounted at /server)
+#   - api prisma/seed GameSetting.ts / GameSettingValue.ts (keys, names, descriptions, values)
+# STATUS: boot-tested (2026-11-27, game2)
+#
+# The image downloads the selected proxy at every start (no install stages).
+#
+# TODO(M4): the api seeds have no GamePort rows for this game. The port below is derived from
+#   ipsd (only "query" is used) and the image default 25577; verify identifier, protocol,
+#   default, group and static against the production game_port rows. ipsd does not tell the
+#   proxy which port to bind, so the listener in config.yml has to match the container port.
+# TODO(M4): verify setting defaults against the production game_setting rows (seed: javaVersion
+#   values 7/11/17, ipsd accepts 8/11/17).
+apiVersion: 1
+
+short: bungeecord
+name: Bungeecord
+description:
+  de: >-
+    Proxy-Server für Minecraft (BungeeCord, Waterfall oder Velocity), der mehrere Minecraft
+    Server zu einem Netzwerk verbindet.
+  en: >-
+    Minecraft proxy server (BungeeCord, Waterfall or Velocity) that links several Minecraft
+    servers into one network.
+tags: [multiplayer, moddable]
+
+sources:
+  - kind: manual
+
+run:
+  imageVariants:
+    setting: javaVersion
+    images:
+      '8': itzg/bungeecord:java8@sha256:60276f0dc503bce96db3ce8f76f1d026632bcd299d337af40394b7dd7224e937
+      '11': itzg/bungeecord:java11@sha256:96753c36c8cd6ed92cc02e94107c1d8e84854c37da7b81a2a15ad327f80b0acc
+      '17': itzg/bungeecord:java17@sha256:f8dae71998c4204afaf755cb5dafeb0ae3768b347c6404b96258c6dfdb843be0
+  # The itzg image expects its data at /server; production mounts the server volume there.
+  dataPath: /server
+  # Production binds a writable per-server /tmp into the container.
+  tmpfs: [/tmp]
+  env:
+    TYPE: '{{ .Setting "type" }}'
+    BUNGEE_JAR_URL: '{{ .Setting "bungeeJarURL" }}'
+    WATERFALL_VERSION: '{{ .Setting "waterfallVersion" }}'
+    WATERFALL_BUILD_ID: '{{ .Setting "waterfallBuildId" }}'
+    VELOCITY_VERSION: '{{ .Setting "velocityVersion" }}'
+    VELOCITY_BUILD_ID: '{{ .Setting "velocityBuildId" }}'
+    # Memory: 1 GB (2 GB from 10 GB RAM) stays with the system and the JVM, the rest is heap;
+    # the initial heap is a third of it.
+    MAX_MEMORY: '{{ sub .Server.RamMB (ternary 2048 1024 (ge .Server.RamMB 10240)) }}M'
+    INIT_MEMORY: '{{ div (sub .Server.RamMB (ternary 2048 1024 (ge .Server.RamMB 10240))) 3 }}M'
+  # No exec/shell: the image entrypoint starts the proxy, as in production.
+  console:
+    via: stdin
+  stop:
+    via: signal
+    signal: SIGTERM
+    timeoutSeconds: 30
+  ready:
+    # BungeeCord/Waterfall: "Listening on /0.0.0.0:25577"; Velocity: "Done (1.23s)!"
+    pattern: 'Listening on /|Done \([0-9.,]+m?s\)!'
+
+# Server list ping on the query port (ipsd queries minecraft_tcp only).
+query:
+  protocol: minecraft
+  port: query
+
+ports:
+  - { identifier: query, protocol: TCP, default: 25577, group: 0 }
+
+settings:
+  - key: javaVersion
+    name: Java-Version
+    description: Die Java Version, die der Server nutzen soll.
+    type: STRINGENUM
+    default: '17'
+    values:
+      - { value: '17', label: Java 17 }
+      - { value: '11', label: Java 11 }
+      - { value: '8', label: Java 8 }
+    validation: { required: true }
+  - key: type
+    name: { de: Typ, en: Type }
+    description: Der Typ des Bungeecord Servers.
+    type: STRINGENUM
+    default: BUNGEECORD
+    values:
+      - { value: BUNGEECORD, label: BungeeCord }
+      - { value: WATERFALL, label: Waterfall }
+      - { value: VELOCITY, label: Velocity }
+      - { value: CUSTOM, label: { de: Eigene JAR, en: Custom JAR } }
+    validation: { required: true }
+  - key: bungeeJarURL
+    name: Bungee-JAR-URL
+    description: >-
+      Der Link zu einer Bungeecord JAR Datei, welche genutzt werden soll. Wird benötigt, wenn der
+      Typ Custom ausgewählt ist.
+    type: STRING
+    visibleWhen: { setting: type, equals: CUSTOM }
+    validation: { maxLength: 2048, pattern: 'https?://\S+' }
+  - key: waterfallVersion
+    name: Waterfall-Version
+    description: Die Version von Waterfall, welche installiert werden soll.
+    type: STRING
+    visibleWhen: { setting: type, equals: WATERFALL }
+    validation: { maxLength: 64 }
+  - key: waterfallBuildId
+    name: Waterfall-Build-ID
+    description: Erlaubt es einen bestimmten Build von Waterfall zu installieren.
+    type: STRING
+    visibleWhen: { setting: type, equals: WATERFALL }
+    validation: { maxLength: 64 }
+  - key: velocityVersion
+    name: Velocity-Version
+    description: Die Velocity Version, welche installiert werden soll.
+    type: STRING
+    visibleWhen: { setting: type, equals: VELOCITY }
+    validation: { maxLength: 64 }
+  - key: velocityBuildId
+    name: Velocity-Build-ID
+    description: Erlaubt es einen bestimmten Build von Velocity zu installieren.
+    type: STRING
+    visibleWhen: { setting: type, equals: VELOCITY }
+    validation: { maxLength: 64 }
+
+preconditions:
+  - check:
+      any:
+        - { not: { setting: type, equals: CUSTOM } }
+        - { setting: bungeeJarURL, minLength: 1 }
+    message:
+      de: Für den Typ Custom muss eine Bungee Jar URL angegeben werden.
+      en: The custom type needs a Bungee jar URL.
+    severity: warning
+
+requirements:
+  minCpuThreads: 1
+  minRam: 2048
+  minDiskspace: 2

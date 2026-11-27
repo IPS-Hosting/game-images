@@ -1,0 +1,148 @@
+# Palworld — migration target for the existing platform game.
+# Legacy sources: ipsd game/palworld.go, palworld/entrypoint.sh. Setting keys, port identifiers and
+# the data layout match the production game.
+# STATUS: boot-tested (2026-11-27, game2)
+#
+# Customer settings stay in Pal/Saved/Config/LinuxServer/PalWorldSettings.ini; the definition only
+# touches the RCON keys inside its OptionSettings tuple, and only when an admin password is set.
+apiVersion: 1
+
+short: palworld
+name: Palworld
+steamAppId: 1623730
+tags: [survival, open-world, co-op, crafting, pvp]
+
+sources:
+  - kind: manual
+
+run:
+  image: ipshosting/game-palworld:v2
+  dataPath: /home/ips-hosting
+  exec:
+    - ./Pal/Binaries/Linux/PalServer-Linux-Shipping
+    - Pal
+    - -port
+    - '{{ (.Port "game").Container }}'
+    - -players
+    - '{{ .Setting "slots" }}'
+    - -logformat
+    - text
+    - -publicip
+    - '{{ .Server.IPv4 }}'
+    - -publicport
+    - '{{ (.Port "game").Exposed }}'
+    - arg: -publiclobby
+      when: { setting: enableCommunityServer, truthy: true }
+    # Production enables the multi-threading flags from 2 CPU threads on.
+    - arg: '{{ if ge .Server.CpuThreads 2 }}-useperfthreads{{ end }}'
+    - arg: '{{ if ge .Server.CpuThreads 2 }}-NoAsyncLoadingThread{{ end }}'
+    - arg: '{{ if ge .Server.CpuThreads 2 }}-UseMultithreadForDS{{ end }}'
+  # Palworld ignores stdin; commands go over RCON.
+  console:
+    via: rcon
+    port: rcon
+    passwordSetting: adminPassword
+  stop:
+    via: command
+    command: Shutdown 5      # graceful: saves the world, then exits
+    timeoutSeconds: 45
+  ready:
+    pattern: 'Setting breakpad minidump AppID = 2394010'
+
+install:
+  - kind: steamcmd
+    appId: 2394010
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+    steamSdk: true
+
+hooks:
+  postInstall:
+    - symlink: { target: Pal/Saved/Config/LinuxServer/PalWorldSettings.ini, link: PalWorldSettings.ini }
+  preStart:
+    - ensureDir: { path: Pal/Saved/Config/LinuxServer }
+    - copyIfMissing: { from: DefaultPalWorldSettings.ini, to: Pal/Saved/Config/LinuxServer/PalWorldSettings.ini }
+    - when: { setting: adminPassword, notEquals: '' }
+      replace:
+        path: Pal/Saved/Config/LinuxServer/PalWorldSettings.ini
+        pattern: 'AdminPassword="[^"]*"'
+        replacement: 'AdminPassword="{{ .Setting "adminPassword" }}"'
+    - when: { setting: adminPassword, notEquals: '' }
+      replace:
+        path: Pal/Saved/Config/LinuxServer/PalWorldSettings.ini
+        pattern: 'RCONEnabled=(?i:false|true)'
+        replacement: RCONEnabled=True
+    - when: { setting: adminPassword, notEquals: '' }
+      replace:
+        path: Pal/Saved/Config/LinuxServer/PalWorldSettings.ini
+        pattern: 'RCONPort=[0-9]+'
+        replacement: 'RCONPort={{ (.Port "rcon").Container }}'
+
+# Production queried Info + ShowPlayers over RCON; ShowPlayers prints a CSV header plus one line per player.
+query:
+  protocol: rcon
+  port: rcon
+  passwordSetting: adminPassword
+  countLinesCommand: ShowPlayers
+  countLinesSkip: 1
+
+# TODO(M4): verify the groups against the production port rows (not in the api seeds).
+ports:
+  - { identifier: game, protocol: UDP, default: 8211,  group: 0 }
+  - { identifier: rcon, protocol: TCP, default: 25575, group: 1 }
+
+settings:
+  - key: slots
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '32'
+    validation: { required: true, integer: true, min: 1, max: 32 }
+  - key: enableCommunityServer
+    name: { de: Community-Server, en: Community server }
+    description: Zeigt den Server in der Liste der Community-Server an.
+    type: BOOLEAN
+    default: '0'
+  # New setting. TODO(M4): the migration fills it from AdminPassword of the existing ini; until then the
+  # hooks above leave existing files untouched and console/query need the setting.
+  - key: adminPassword
+    name: { de: Admin-Passwort (RCON), en: Admin password (RCON) }
+    description: Wird als AdminPassword in PalWorldSettings.ini eingetragen und für Konsole und Abfrage über RCON genutzt.
+    type: HIDDENSTRING
+    generate: { length: 20 }
+    category: admin
+    validation: { pattern: '^[A-Za-z0-9_.!#%&*+=?@-]*$', maxLength: 64 }
+  - key: betaBranch
+    name: Beta-Branch
+    description: Name der Beta Branch, auf der der Server laufen soll. Beim Wechsel können Server-Dateien überschrieben werden.
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: Beta-Passwort
+    description: Manche Beta Branches sind durch ein Passwort geschützt, welches hier angegeben werden kann.
+    type: HIDDENSTRING
+    category: steamBeta
+
+preconditions:
+  - check: { setting: adminPassword, notEquals: '' }
+    severity: warning
+    message: Ohne Admin-Passwort sind Konsole und Spieleranzeige nicht verfügbar.
+
+# Server files from the steamcmd stage (re-downloaded on install); saves are in Pal/Saved/.
+backupIgnore:
+  - /Pal/Binaries/**
+  - /Engine/**
+  - /steamapps/**
+  - /Pal/Saved/Logs/**
+
+protectedFiles:
+  - { path: /Pal/Binaries/**, readOnly: true }
+  - { path: /PalServer.sh, readOnly: true }
+
+flags:
+  showMap: false
+  steamConnect: false
+
+requirements:
+  minCpuThreads: 2
+  minRam: 8192
+  minDiskspace: 10

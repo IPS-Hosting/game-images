@@ -1,0 +1,190 @@
+# Minecraft Bedrock Edition — new game (Bedrock Dedicated Server in the itzg image).
+# STATUS: boot-tested (2026-11-27, game2)
+#
+# Runs the itzg/minecraft-bedrock-server image (MIT, github.com/itzg/docker-minecraft-bedrock-server
+# @e5838a09dc04b01c6d36aec6dcba3fae75e627e5). Its entrypoint downloads the Bedrock Dedicated Server
+# from minecraft.net at start when VERSION changes (Bedrock clients update automatically and need a
+# matching server, so a pinned download would lock players out after every Bedrock release) and
+# writes server.properties from the environment.
+apiVersion: 1
+
+short: mcbedrock
+name: Minecraft Bedrock Edition
+description:
+  de: Minecraft für Konsole, Smartphone und Windows mit Crossplay.
+  en: Minecraft for consoles, phones and Windows with crossplay.
+tags: [sandbox, survival, building, crafting, multiplayer]
+
+sources:
+  - kind: manual
+
+run:
+  image: docker.io/itzg/minecraft-bedrock-server:latest@sha256:dbae8bd80befcf1b289de59834cecfbe33303cd64f2b58e1dafba6addb1db3a5
+  dataPath: /data
+  env:
+    EULA: '{{ ternary "TRUE" "FALSE" (.SettingBool "eula") }}'
+    VERSION: '{{ .Setting "version" }}'
+    SERVER_PORT: '{{ (.Port "game").Container }}'
+    # IPv6 listener of BDS; the container has its own network namespace, so it is not exposed.
+    SERVER_PORT_V6: '{{ add (.Port "game").Container 1 }}'
+    SERVER_NAME: '{{ .Setting "name" }}'
+    GAMEMODE: '{{ .Setting "gameMode" }}'
+    DIFFICULTY: '{{ .Setting "difficulty" }}'
+    MAX_PLAYERS: '{{ .Setting "maxPlayers" }}'
+    LEVEL_NAME: '{{ .Setting "worldName" }}'
+    LEVEL_SEED: '{{ .Setting "seed" }}'
+    ALLOW_CHEATS: '{{ .SettingBool "allowCheats" }}'
+    ONLINE_MODE: '{{ .SettingBool "onlineMode" }}'
+    ALLOW_LIST: '{{ .SettingBool "allowList" }}'
+    VIEW_DISTANCE: '{{ .Setting "viewDistance" }}'
+    TICK_DISTANCE: '{{ .Setting "tickDistance" }}'
+    DEFAULT_PLAYER_PERMISSION_LEVEL: '{{ .Setting "defaultPermission" }}'
+  # No exec/shell: the image entrypoint (entrypoint-demoter -> bedrock-entry.sh) starts the server.
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: stop
+    timeoutSeconds: 30
+  ready:
+    pattern: 'Server started\.'
+
+# Empty: the image installs and updates the server itself.
+install: []
+
+players:
+  joinPattern: 'Player connected: (?P<name>[^,]+), xuid'
+  leavePattern: 'Player disconnected: (?P<name>[^,]+), xuid'
+
+ports:
+  - { identifier: game, protocol: UDP, default: 19132, group: 0 }
+
+settings:
+  - key: eula
+    name: { de: EULA akzeptieren, en: Accept EULA }
+    description:
+      de: Mit dem Aktivieren bestätigst du, dass du die Minecraft-EULA (https://www.minecraft.net/eula) gelesen hast und akzeptierst. Ohne Zustimmung startet der Server nicht.
+      en: By enabling this you confirm that you have read and accept the Minecraft EULA (https://www.minecraft.net/eula). The server does not start without it.
+    type: BOOLEAN
+    default: '0'
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Minecraft Bedrock Server
+    validation: { required: true, minLength: 1, maxLength: 64 }
+  - key: gameMode
+    name: { de: Spielmodus, en: Game mode }
+    type: STRINGENUM
+    default: survival
+    values:
+      - { value: survival, label: { de: Überleben, en: Survival } }
+      - { value: creative, label: { de: Kreativ, en: Creative } }
+      - { value: adventure, label: { de: Abenteuer, en: Adventure } }
+    category: gameplay
+  - key: difficulty
+    name: { de: Schwierigkeit, en: Difficulty }
+    type: STRINGENUM
+    default: easy
+    values:
+      - { value: peaceful, label: { de: Friedlich, en: Peaceful } }
+      - { value: easy, label: { de: Einfach, en: Easy } }
+      - { value: normal, label: { de: Normal, en: Normal } }
+      - { value: hard, label: { de: Schwer, en: Hard } }
+    category: gameplay
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '10'
+    validation: { required: true, integer: true, min: 1, max: 200 }
+  - key: allowCheats
+    name: { de: Cheats erlauben, en: Allow cheats }
+    type: BOOLEAN
+    default: '0'
+    category: gameplay
+  - key: defaultPermission
+    name: { de: Standard-Berechtigung, en: Default permission level }
+    description:
+      de: Berechtigungsstufe neuer Spieler.
+      en: Permission level of new players.
+    type: STRINGENUM
+    default: member
+    values:
+      - { value: visitor, label: { de: Besucher, en: Visitor } }
+      - { value: member, label: { de: Mitglied, en: Member } }
+      - { value: operator, label: { de: Operator, en: Operator } }
+    category: admin
+  - key: onlineMode
+    name: { de: Xbox-Live-Anmeldung erforderlich, en: Require Xbox Live sign-in }
+    type: BOOLEAN
+    default: '1'
+    category: admin
+  - key: allowList
+    name: { de: Allowlist aktiv, en: Allowlist enabled }
+    description:
+      de: Nur Spieler aus allowlist.json dürfen beitreten.
+      en: Only players listed in allowlist.json may join.
+    type: BOOLEAN
+    default: '0'
+    category: admin
+  - key: worldName
+    name: { de: Weltname, en: World name }
+    description:
+      de: Ordner in worlds/. Ein neuer Name erzeugt eine neue Welt.
+      en: Folder in worlds/. A new name creates a new world.
+    type: STRING
+    default: Bedrock level
+    validation: { required: true, minLength: 1, maxLength: 64, pattern: '[^/\\]+' }
+    category: world
+  - key: seed
+    name: { de: Seed, en: Seed }
+    description:
+      de: Nur beim Erzeugen einer neuen Welt verwendet. Leer = zufällig.
+      en: Used only when a new world is created. Empty means random.
+    type: STRING
+    validation: { maxLength: 64 }
+    category: world
+  - key: viewDistance
+    name: { de: Sichtweite (Chunks), en: View distance (chunks) }
+    type: NUMBER
+    default: '32'
+    validation: { required: true, integer: true, min: 5, max: 96 }
+    category: performance
+  - key: tickDistance
+    name: { de: Simulationsdistanz (Chunks), en: Tick distance (chunks) }
+    type: NUMBER
+    default: '4'
+    validation: { required: true, integer: true, min: 4, max: 12 }
+    category: performance
+  - key: version
+    name: { de: Server-Version, en: Server version }
+    description:
+      de: LATEST für die aktuelle Version, PREVIEW für die Vorschau oder eine feste Versionsnummer (z. B. 1.21.100.7). Clients brauchen dieselbe Version.
+      en: LATEST for the current release, PREVIEW for the preview or a fixed version number (e.g. 1.21.100.7). Clients need the same version.
+    type: STRING
+    default: LATEST
+    validation: { required: true, pattern: 'LATEST|PREVIEW|[0-9]+(\.[0-9]+){1,4}' }
+    category: advanced
+
+preconditions:
+  - check: { setting: eula, truthy: true }
+    message:
+      de: Bitte akzeptiere die Minecraft-EULA in den Einstellungen, bevor du den Server startest.
+      en: Please accept the Minecraft EULA in the settings before starting the server.
+    severity: error
+
+protectedFiles:
+  - { path: /bedrock_server*, readOnly: true }
+  - { path: '/*.so', readOnly: true }
+
+# Server binaries and the download cache are fetched again at start.
+backupIgnore:
+  - bedrock_server*
+  - '*.so'
+  - .downloads/**
+  - .tmp/**
+  - backup-pre-*/**
+
+requirements:
+  minCpuThreads: 1
+  minRam: 1024
+  minDiskspace: 3

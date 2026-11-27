@@ -1,0 +1,138 @@
+# Core Keeper — new game, derived from the Pelican egg (games-steamcmd core_keeper).
+# STATUS: boot-tested (2026-11-27, game2)
+#
+# The server needs an X display; like the egg it runs under Xvfb (started directly instead of
+# xvfb-run, so the stop signal reaches the server) and logs to a file that is mirrored to stdout.
+# Players join via the Game ID from GameID.txt or, with the game port, directly via IP.
+apiVersion: 1
+
+short: corekeeper
+name: Core Keeper
+steamAppId: 1621690
+tags: [adventure, survival, crafting, building, co-op]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:core_keeper/egg-core-keeper.json
+    license: MIT
+
+run:
+  image: ghcr.io/parkervcp/steamcmd:debian@sha256:c59cff8cd1202c8f283b8b36344166a9fc16e3f781aa1be7d10187cd9d7566d8
+  dataPath: /home/container
+  tmpfs: [/tmp]
+  env:
+    GAME_PORT: '{{ (.Port "game").Container }}'
+    WORLD_INDEX: '{{ .Setting "worldIndex" }}'
+    WORLD_NAME: '{{ .Setting "worldName" }}'
+    WORLD_SEED: '{{ .Setting "seed" }}'
+    WORLD_MODE: '{{ .Setting "worldMode" }}'
+    MAX_PLAYERS: '{{ .Setting "maxPlayers" }}'
+    GAME_ID: '{{ .Setting "gameId" }}'
+  shell: |
+    rm -f GameID.txt
+    : > CoreKeeperServerLog.txt
+    Xvfb :99 -screen 0 1x1x24 -nolisten tcp >/dev/null 2>&1 &
+    xvfb=$!
+    export DISPLAY=:99
+    set -- -batchmode -logfile CoreKeeperServerLog.txt -world "$WORLD_INDEX" -worldname "$WORLD_NAME" \
+      -worldseed "$WORLD_SEED" -worldmode "$WORLD_MODE" -maxplayers "$MAX_PLAYERS" -port "$GAME_PORT"
+    if [ -n "$GAME_ID" ]; then set -- "$@" -gameid "$GAME_ID"; fi
+    ./CoreKeeperServer "$@" &
+    server=$!
+    tail -n +1 -F CoreKeeperServerLog.txt 2>/dev/null &
+    log=$!
+    trap 'kill -TERM "$server" 2>/dev/null' TERM INT
+    status=0
+    wait "$server" || status=$?
+    while kill -0 "$server" 2>/dev/null; do wait "$server" || status=$?; done
+    kill "$log" "$xvfb" 2>/dev/null
+    exit "$status"
+  console:
+    via: none
+  stop:
+    via: signal
+    signal: SIGTERM
+    timeoutSeconds: 30
+  ready:
+    pattern: 'Started session'
+
+install:
+  - kind: steamcmd
+    appId: 1963720
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # Steamworks SDK redistributable: provides linux64/steamclient.so for ~/.steam/sdk64.
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
+    steamSdk: true
+
+ports:
+  - { identifier: game, protocol: UDP, default: 27015, group: 0 }
+
+settings:
+  - key: worldName
+    name: { de: Weltname, en: World name }
+    type: STRING
+    default: Core Keeper Server
+    category: world
+    validation: { required: true, minLength: 3, maxLength: 100 }
+  - key: worldIndex
+    name: { de: Weltslot, en: World slot }
+    description: { de: Nummer des Spielstands. Ein neuer Slot erzeugt eine neue Welt., en: Number of the save slot. A new slot creates a new world. }
+    type: NUMBER
+    default: '0'
+    category: world
+    validation: { integer: true, min: 0, max: 99 }
+  - key: seed
+    name: Seed
+    description: { de: 0 erzeugt einen zufälligen Seed., en: 0 picks a random seed. }
+    type: NUMBER
+    default: '0'
+    category: world
+    validation: { integer: true, min: 0 }
+  - key: worldMode
+    name: { de: Spielmodus, en: World mode }
+    type: NUMBERENUM
+    default: '0'
+    category: gameplay
+    values:
+      - { value: '0', label: { de: Normal, en: Normal } }
+      - { value: '1', label: { de: Schwer, en: Hard } }
+      - { value: '2', label: { de: Kreativ, en: Creative } }
+      - { value: '4', label: { de: Entspannt, en: Casual } }
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '8'
+    validation: { integer: true, min: 1, max: 100 }
+  - key: gameId
+    name: Game ID
+    description: { de: 'Optional, mindestens 28 Zeichen. Leer lassen, damit der Server eine ID erzeugt (steht in GameID.txt).', en: 'Optional, at least 28 characters. Leave empty to let the server generate one (see GameID.txt).' }
+    type: STRING
+    category: network
+    validation: { minLength: 28, maxLength: 64, pattern: '[A-Za-z0-9]+' }
+  - key: betaBranch
+    name: Beta-Branch
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: { de: Beta-Passwort, en: Beta password }
+    type: HIDDENSTRING
+    category: steamBeta
+
+protectedFiles:
+  - { path: /CoreKeeperServer, readOnly: true }
+  - { path: /CoreKeeperServer_Data/**, readOnly: true }
+  - { path: /steamworks/**, readOnly: true }
+
+backupIgnore:
+  - CoreKeeperServer_Data/**
+  - steamapps/**
+  - steamworks/**
+  - CoreKeeperServerLog.txt
+
+requirements:
+  minCpuThreads: 1
+  minRam: 2048
+  minDiskspace: 3

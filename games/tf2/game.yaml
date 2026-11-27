@@ -1,0 +1,137 @@
+# Team Fortress 2 — new game, derived from the Pelican egg for custom Source engine games.
+# STATUS: validated (boot-test risks: 64-bit start script)
+#
+# Egg: games-steamcmd custom-source-engine with SRCDS_APPID=232250, SRCDS_GAME=tf (TF2 has no own
+# egg). Uses the 64-bit server (srcds_run_64) that TF2 ships since 2024.
+apiVersion: 1
+
+short: tf2
+name: Team Fortress 2
+steamAppId: 440
+tags: [action, fps, multiplayer, pvp, moddable]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:custom-source-engine/egg-custom-source-engine-game.yaml
+    license: MIT
+
+run:
+  image: ghcr.io/parkervcp/games:source@sha256:09d0d14b21b203ec1769fc5db43a0361107f5165d96e815036e7a02bdff31687
+  dataPath: /home/container
+  exec:
+    - ./srcds_run_64
+    - -game
+    - tf
+    - -console
+    - -norestart
+    - -strictportbind
+    - -port
+    - '{{ (.Port "game").Container }}'
+    - +ip
+    - 0.0.0.0
+    - +maxplayers
+    - '{{ .Setting "maxPlayers" }}'
+    - +map
+    - '{{ .Setting "map" }}'
+    - +hostname
+    - '{{ .Setting "name" }}'
+    - +sv_lan
+    - '0'
+    - arg: +sv_password
+      value: '{{ .Setting "password" }}'
+    - arg: +rcon_password
+      value: '{{ .Setting "rconPassword" }}'
+    - arg: +sv_setsteamaccount
+      value: '{{ .Setting "gslt" }}'
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: quit
+    timeoutSeconds: 15
+  ready:
+    pattern: 'Connection to Steam servers successful'
+
+install:
+  - kind: steamcmd
+    appId: 232250
+  # Steamworks SDK redistributable: provides steamclient.so for ~/.steam/sdk32 and sdk64.
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
+    steamSdk: true
+
+hooks:
+  postInstall:
+    # steamSdk links .steam/sdk32 to steamworks/linux32/steamclient.so, but app 1007 has its 32-bit
+    # library at steamworks/steamclient.so (srcds: "Unable to load Steam support library").
+    - symlink:
+        target: steamworks/steamclient.so
+        link: .steam/sdk32/steamclient.so
+
+query:
+  protocol: a2s
+  port: game
+
+ports:
+  - { identifier: game, protocol: UDP, default: 27015, group: 0 }
+  - { identifier: rcon, protocol: TCP, default: 27015, group: 0 }
+
+settings:
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Mein Team Fortress 2 Server
+    validation: { required: true, minLength: 3, maxLength: 64 }
+  - key: password
+    name: { de: Server-Passwort, en: Server password }
+    description: { de: Leer lassen für einen öffentlichen Server., en: Leave empty for a public server. }
+    type: HIDDENSTRING
+    validation: { maxLength: 64 }
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '24'
+    validation: { integer: true, min: 2, max: 32 }
+  - key: map
+    name: { de: Startkarte, en: Start map }
+    description: { de: 'z. B. ctf_2fort, cp_dustbowl, pl_badwater, koth_harvest_final, cp_process_final.', en: 'e.g. ctf_2fort, cp_dustbowl, pl_badwater, koth_harvest_final, cp_process_final.' }
+    type: STRING
+    default: ctf_2fort
+    category: gameplay
+    validation: { required: true, maxLength: 64, pattern: '[A-Za-z0-9_-]+' }
+  - key: gslt
+    name: Game Server Login Token
+    description: { de: 'Token erstellen unter https://steamcommunity.com/dev/managegameservers (App-ID 440).', en: 'Create a token at https://steamcommunity.com/dev/managegameservers (app id 440).' }
+    type: HIDDENSTRING
+    category: general
+    validation: { maxLength: 64, pattern: '[A-Za-z0-9]*' }
+  - key: rconPassword
+    name: { de: RCON-Passwort, en: RCON password }
+    description: { de: 'Leer lassen, um RCON zu deaktivieren.', en: Leave empty to disable RCON. }
+    type: HIDDENSTRING
+    category: admin
+    validation: { maxLength: 64 }
+
+preconditions:
+  - check: { setting: gslt, matches: '\S' }
+    severity: warning
+    message: Ohne Game Server Login Token läuft der Server mit einem anonymen Konto ohne feste Steam-ID. Für öffentliche Server wird ein Token empfohlen.
+
+protectedFiles:
+  - { path: /srcds_run*, readOnly: true }
+  - { path: /srcds_linux*, readOnly: true }
+  - { path: /bin/**, readOnly: true }
+  - { path: /steamworks/**, readOnly: true }
+
+backupIgnore:
+  - bin/**
+  - tf/*.vpk
+  - tf/bin/**
+  - steamapps/**
+  - steamworks/**
+
+requirements:
+  minCpuThreads: 1
+  minRam: 1024
+  minDiskspace: 30

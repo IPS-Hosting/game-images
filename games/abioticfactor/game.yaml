@@ -1,0 +1,177 @@
+# Abiotic Factor — new game, Windows-only dedicated server under Proton, based on the Pelican egg.
+# STATUS: boot-tested (2026-11-27, game2)
+#
+# GE-Proton comes from the pelican steamcmd:proton yolk. Start arguments, ports and ready line
+# follow the pelican egg; further launch parameters follow the official server documentation
+# (DFJacob/AbioticFactorDedicatedServer wiki). Sandbox settings stay per world (game default).
+# Wine/Proton runtime contract (prefix, tmpfs, display, stop): games/enshrouded/README.md.
+apiVersion: 1
+
+short: abioticfactor
+name: Abiotic Factor
+steamAppId: 427410
+tags: [survival, crafting, co-op, building]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:abiotic_factor/egg-abiotic-factor.yaml
+    license: MIT
+
+run:
+  image: ghcr.io/pelican-eggs/steamcmd:proton@sha256:099a9eba9b0e623c124680fd011948d09b2f5b24f49b0776b5821ff35e5b2530
+  dataPath: /home/container
+  workingDir: AbioticFactor/Binaries/Win64
+  tmpfs: [/tmp]
+  env:
+    STEAM_COMPAT_CLIENT_INSTALL_PATH: /home/container/.steam/steam
+    STEAM_COMPAT_DATA_PATH: /home/container/.steam/steam/steamapps/compatdata/2857200
+    WINEDEBUG: -all
+    WINEDLLOVERRIDES: winemenubuilder.exe=d
+    DISPLAY: ':99'
+    SERVER_NAME: '{{ .Setting "name" }}'
+    SERVER_PASSWORD: '{{ .Setting "password" }}'
+    ADMIN_PASSWORD: '{{ .Setting "adminPassword" }}'
+    MAX_PLAYERS: '{{ .Setting "maxPlayers" }}'
+    WORLD_SAVE_NAME: '{{ .Setting "worldName" }}'
+    PLATFORM_LIMITED: '{{ .Setting "platformLimited" }}'
+    GAME_PORT: '{{ (.Port "game").Container }}'
+    QUERY_PORT: '{{ (.Port "query").Container }}'
+  # The server logs to AbioticFactor/Saved/Logs/AbioticFactor.log, which is followed on stdout
+  # (console, ready pattern). `proton run` is a Python launcher whose child processes do not get the
+  # stop signal, so SIGINT/SIGTERM are translated into SIGINT for the server process itself (Wine:
+  # CTRL_C_EVENT, the world is saved), and the shell waits until it is gone.
+  shell: |
+    Xvfb :99 -screen 0 1024x768x16 -nolisten tcp >/dev/null 2>&1 &
+    i=0
+    while [ ! -e /tmp/.X11-unix/X99 ] && [ "$i" -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+
+    game_pids() {
+      for p in /proc/[0-9]*; do
+        argv0=$(tr '\0' '\n' 2>/dev/null < "$p/cmdline" | head -n 1)
+        case "$argv0" in
+          *steam.exe*) ;;
+          *AbioticFactorServer-Win64-Shipping.exe*) echo "${p#/proc/}" ;;
+        esac
+      done
+    }
+    trap 'for pid in $(game_pids); do kill -INT "$pid" 2>/dev/null; done' INT TERM
+
+    set -- -log -useperfthreads -NoAsyncLoadingThread \
+      -PORT="$GAME_PORT" -QueryPort="$QUERY_PORT" \
+      -MaxServerPlayers="$MAX_PLAYERS" -SteamServerName="$SERVER_NAME" \
+      -WorldSaveName="$WORLD_SAVE_NAME"
+    if [ -n "$SERVER_PASSWORD" ]; then set -- "$@" -ServerPassword="$SERVER_PASSWORD"; fi
+    if [ -n "$ADMIN_PASSWORD" ]; then set -- "$@" -AdminPassword="$ADMIN_PASSWORD"; fi
+    if [ -n "$PLATFORM_LIMITED" ]; then set -- "$@" -PlatformLimited="$PLATFORM_LIMITED"; fi
+
+    log=/home/container/AbioticFactor/Saved/Logs/AbioticFactor.log
+    mkdir -p "$(dirname "$log")"
+    proton run ./AbioticFactorServer-Win64-Shipping.exe "$@" &
+    launcher=$!
+    tail -c0 -F "$log" --pid="$launcher" 2>/dev/null &
+
+    status=0
+    while :; do
+      wait "$launcher"; status=$?
+      kill -0 "$launcher" 2>/dev/null || break
+    done
+    while [ -n "$(game_pids)" ]; do sleep 1; done
+    exit "$status"
+  console:
+    via: none
+  stop:
+    via: signal
+    signal: SIGINT
+    timeoutSeconds: 60
+  ready:
+    pattern: 'LogInit: Display: Engine is initialized\.'
+
+install:
+  # Steamworks redistributable (steamclient64.dll and friends), installed like the pelican yolks do.
+  - kind: steamcmd
+    appId: 1007
+    platform: windows
+  - kind: steamcmd
+    appId: 2857200
+    platform: windows
+  # Proton bridges the Steam API (lsteamclient) to the Linux steamclient.so; without a current one
+  # "Steam Dedicated Server API failed to initialize". Copied from the installer's steamcmd.
+  - kind: script
+    shell: |
+      set -eu
+      cd "$IPS_DATA_PATH"
+      for dir in .steam/sdk64 .steam/steam/linux64; do
+        mkdir -p "$dir"
+        cp -f "$STEAMCMD_DIR/linux64/steamclient.so" "$dir/steamclient.so"
+      done
+
+hooks:
+  preStart:
+    - ensureDir: { path: .steam/steam/steamapps/compatdata/2857200 }
+
+query:
+  protocol: a2s
+  port: query
+
+ports:
+  - { identifier: game,  protocol: UDP, default: 7777,  group: 0 }
+  - { identifier: query, protocol: UDP, default: 27015, group: 1 }
+
+settings:
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Mein Abiotic Factor Server
+    validation: { required: true, minLength: 3, maxLength: 64 }
+  - key: password
+    name: { de: Server-Passwort, en: Server password }
+    description: Leer lassen für einen Server ohne Passwort.
+    type: HIDDENSTRING
+    validation: { maxLength: 30 }
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    description: Mehr als 6 Spieler werden vom Spiel nicht empfohlen; Spieler sehen dann beim Beitritt einen Hinweis.
+    type: NUMBER
+    default: '6'
+    validation: { integer: true, min: 1, max: 24 }
+  - key: worldName
+    name: { de: Weltname, en: World name }
+    description: Ordner in AbioticFactor/Saved/SaveGames/Server/Worlds. Für eine hochgeladene Welt deren Ordnernamen eintragen.
+    type: STRING
+    default: Cascade
+    validation: { required: true, pattern: '^[A-Za-z0-9_-]{1,64}$' }
+    category: world
+  - key: platformLimited
+    name: { de: Crossplay, en: Crossplay }
+    type: STRINGENUM
+    default: ''
+    category: network
+    values:
+      - { value: '', label: Alle Plattformen }
+      - { value: PC, label: Nur Steam }
+      - { value: Xbox, label: Nur Xbox und Microsoft Store }
+      - { value: Playstation, label: Nur PlayStation }
+  - key: adminPassword
+    name: { de: Admin-Passwort, en: Admin password }
+    description: Spieler werden mit diesem Passwort im Spiel zu Admins. Leer lassen, um Admins nur über Admin.ini festzulegen.
+    type: HIDDENSTRING
+    generate: { length: 16 }
+    validation: { maxLength: 30 }
+    category: admin
+
+protectedFiles:
+  - { path: /AbioticFactor/Binaries/**, readOnly: true }
+
+# Game files and the Proton prefix are recreated by install and the first start.
+backupIgnore:
+  - AbioticFactor/Binaries/**
+  - AbioticFactor/Content/**
+  - Engine/**
+  - steamapps/**
+  - .steam/**
+  - AbioticFactor/Saved/Logs/**
+
+requirements:
+  minCpuThreads: 2
+  minRam: 4096
+  minDiskspace: 10

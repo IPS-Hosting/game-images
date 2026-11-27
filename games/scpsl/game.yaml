@@ -1,0 +1,114 @@
+# SCP: Secret Laboratory — migration target for the existing platform game.
+# Legacy sources: ipsd game/scpsl.go (env, stop command), scpsl/entrypoint.sh (start command, log
+# symlinks) and the api seeds (settings, ports, files). Ports, setting keys and the data layout
+# (.config/SCP Secret Laboratory/... per game port) match production.
+# STATUS: boot-tested (2026-11-27, game2)
+#
+# The server listing (SCP:SL provider API) stays a platform integration in the api.
+#
+# Not ported from entrypoint.sh: the CONFIG_* to config_gameplay.txt mapping (ipsd never passes
+# such variables) and the 30 s first-run with "yes" piped to stdin, which generated the config
+# and accepted the EULA implicitly. The EULA is now an explicit setting.
+apiVersion: 1
+
+short: scpsl
+name: 'SCP: Secret Laboratory'
+steamAppId: 700330
+tags: [horror, multiplayer, pvp, action]
+
+sources:
+  - kind: manual
+
+run:
+  # The production image provides mono-runtime and libgdiplus (needed by popular plugins).
+  # Its entrypoint is not used: it runs steamcmd on every start without a command.
+  image: ipshosting/game-scpsl:v3
+  dataPath: /home/ips-hosting
+  exec:
+    - ./LocalAdmin
+    - '{{ (.Port "game").Container }}'
+    - --printStd
+    - --noSetCursor
+    - --config
+    - /home/ips-hosting/localadmin_config.txt
+    - --useDefault
+    - --logLengthLimit
+    - 1G
+    - --gameLogs
+    - '/home/ips-hosting/.config/SCP Secret Laboratory/ServerLogs/{{ (.Port "game").Container }}'
+    - --logs
+    - '/home/ips-hosting/.config/SCP Secret Laboratory/LocalAdminLogs/{{ (.Port "game").Container }}'
+    # TODO(M3): verify the LocalAdmin flag in the boot test (production answered the prompt
+    # with "yes" on the first start instead).
+    - arg: --acceptEULA
+      when: { setting: eula, truthy: true }
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: exit
+    timeoutSeconds: 10
+  ready:
+    # TODO(M3): verify in the boot test.
+    pattern: 'Waiting for players'
+
+install:
+  - kind: steamcmd
+    appId: 996560
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+
+hooks:
+  preStart:
+    # https://github.com/northwood-studios/LocalAdmin-V2/issues/52
+    - ensureDir: { path: .config }
+    # Shortcuts to the logs of the current port, as in entrypoint.sh start().
+    - symlink:
+        target: '.config/SCP Secret Laboratory/ServerLogs/{{ (.Port "game").Container }}'
+        link: ServerLogs
+    - symlink:
+        target: '.config/SCP Secret Laboratory/LocalAdminLogs/{{ (.Port "game").Container }}'
+        link: LocalAdminLogs
+
+ports:
+  - { identifier: game,  protocol: UDP, default: 7777, group: 0 }
+  - { identifier: query, protocol: TCP, default: 7777, group: 0 }
+
+settings:
+  - key: eula
+    name: EULA akzeptieren
+    description: Ich akzeptiere die Endbenutzer-Lizenzvereinbarung des SCP:SL-Servers (https://store.steampowered.com/eula/700330_eula_0).
+    type: BOOLEAN
+    # TODO(M4): existing servers accepted the EULA during the legacy first start; the migration
+    # sets eula=1 for them.
+    default: '0'
+  - key: betaBranch
+    name: Beta-Branch
+    description: Falls der Server auf einer Beta Branch laufen soll, trage hier ihren Namen ein (Liste unter https://steamdb.info/app/996560/depots/). Beim Wechsel können Server-Dateien überschrieben werden, und eventuell können nur Spieler derselben Branch beitreten.
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: Beta-Passwort
+    description: Manche Beta Branches sind durch ein Passwort geschützt, welches hier angegeben werden kann.
+    type: HIDDENSTRING
+    category: steamBeta
+
+preconditions:
+  - check: { setting: eula, truthy: true }
+    severity: error
+    message: Der Server startet erst, wenn die EULA in den Einstellungen akzeptiert wurde.
+
+protectedFiles:
+  - { path: /LocalAdmin, readOnly: true }
+  - { path: /SCPSL.x86_64, readOnly: true }
+
+backupIgnore:
+  - /.steam
+  - /Steam
+  - /steamapps
+
+# Production has no query for SCP:SL; the player count comes from the provider listing.
+requirements:
+  minCpuThreads: 1
+  minRam: 2048
+  minDiskspace: 5

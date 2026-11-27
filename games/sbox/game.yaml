@@ -1,0 +1,118 @@
+# s&box — new game without a Pelican egg, written from the official dedicated server notes (sbox.game).
+# STATUS: boot-tested (2026-11-27, game2)
+# NOTE: hosting terms to confirm with the publisher
+#
+# The server loads game and map packages from sbox.game at runtime; players connect via Steam
+# Datagram Relay or directly via the game port.
+apiVersion: 1
+
+short: sbox
+name: s&box
+steamAppId: 590830
+tags: [sandbox, multiplayer, moddable]
+
+sources:
+  - kind: manual
+
+run:
+  # Ubuntu 24.04: libengine2.so needs glibc 2.38 and libstdc++ GLIBCXX_3.4.32 (the debian
+  # bookworm image has glibc 2.36).
+  image: ghcr.io/parkervcp/steamcmd:ubuntu@sha256:c79047b2370a2ad613d37ad8b7c2d75dcf8ec7c236db57a1c7791245e2b26452
+  dataPath: /home/container
+  exec:
+    - ./sbox-server
+    - +game
+    - '{{ .Setting "game" }}'
+    - arg: '{{ .Setting "map" }}'
+    - +hostname
+    - '{{ .Setting "name" }}'
+    - +port
+    - '{{ (.Port "game").Container }}'
+    - +net_query_port
+    - '{{ (.Port "query").Container }}'
+    - arg: +net_game_server_token
+      value: '{{ .Setting "gslt" }}'
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: quit
+    timeoutSeconds: 20
+
+install:
+  - kind: steamcmd
+    appId: 1892930
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # The Linux server no longer ships the Steam client library: link it from the Steamworks SDK
+  # redistributable to ~/.steam/sdk64.
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
+    steamSdk: true
+
+# TODO(M3): verify that the query port answers A2S.
+query:
+  protocol: a2s
+  port: query
+
+ports:
+  - { identifier: game,  protocol: UDP, default: 27015, group: 0 }
+  - { identifier: query, protocol: UDP, default: 27016, group: 0 }
+
+settings:
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Mein s&box Server
+    validation: { required: true, minLength: 3, maxLength: 64 }
+  - key: game
+    name: { de: Spiel, en: Game }
+    description: { de: 'Paket-Ident des Spiels auf sbox.game, z. B. facepunch.sandbox.', en: 'Package ident of the game on sbox.game, e.g. facepunch.sandbox.' }
+    type: STRING
+    default: facepunch.sandbox
+    category: gameplay
+    validation: { required: true, maxLength: 128, pattern: '[a-z0-9_-]+\.[a-z0-9_.-]+' }
+  - key: map
+    name: { de: Karte, en: Map }
+    description: { de: 'Paket-Ident der Karte, z. B. facepunch.flatgrass. Leer für die Standardkarte des Spiels.', en: 'Package ident of the map, e.g. facepunch.flatgrass. Empty for the default map of the game.' }
+    type: STRING
+    default: facepunch.flatgrass
+    category: gameplay
+    validation: { maxLength: 128, pattern: '[a-z0-9_-]+\.[a-z0-9_.-]+' }
+  - key: gslt
+    name: Game Server Login Token
+    description: { de: 'Optional, für eine feste Steam-ID des Servers. Token erstellen unter https://steamcommunity.com/dev/managegameservers (App-ID 590830).', en: 'Optional, gives the server a stable Steam ID. Create a token at https://steamcommunity.com/dev/managegameservers (app id 590830).' }
+    type: HIDDENSTRING
+    category: general
+    validation: { maxLength: 64, pattern: '[A-Za-z0-9]*' }
+  - key: betaBranch
+    name: Beta-Branch
+    description: { de: 'z. B. staging.', en: 'e.g. staging.' }
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: { de: Beta-Passwort, en: Beta password }
+    type: HIDDENSTRING
+    category: steamBeta
+
+preconditions:
+  - check: { setting: gslt, matches: '\S' }
+    severity: warning
+    message: Ohne Game Server Login Token läuft der Server mit einem anonymen Konto ohne feste Steam-ID. Für öffentliche Server wird ein Token empfohlen.
+
+protectedFiles:
+  - { path: /sbox-server, readOnly: true }
+  - { path: /bin/**, readOnly: true }
+  - { path: /steamworks/**, readOnly: true }
+
+backupIgnore:
+  - bin/**
+  - steamapps/**
+  - steamworks/**
+  - logs/**
+
+requirements:
+  minCpuThreads: 2
+  minRam: 2048
+  minDiskspace: 10
