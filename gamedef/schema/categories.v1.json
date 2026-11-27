@@ -1,0 +1,67 @@
+{
+  "categories": [
+    {
+      "id": "general",
+      "label": {
+        "de": "Allgemein",
+        "en": "General"
+      }
+    },
+    {
+      "id": "network",
+      "label": {
+        "de": "Netzwerk",
+        "en": "Network"
+      }
+    },
+    {
+      "id": "gameplay",
+      "label": {
+        "de": "Spielablauf",
+        "en": "Gameplay"
+      }
+    },
+    {
+      "id": "world",
+      "label": {
+        "de": "Welt",
+        "en": "World"
+      }
+    },
+    {
+      "id": "admin",
+      "label": {
+        "de": "Administration",
+        "en": "Administration"
+      }
+    },
+    {
+      "id": "mods",
+      "label": {
+        "de": "Mods",
+        "en": "Mods"
+      }
+    },
+    {
+      "id": "steamBeta",
+      "label": {
+        "de": "Steam Beta Branch",
+        "en": "Steam beta branch"
+      }
+    },
+    {
+      "id": "advanced",
+      "label": {
+        "de": "Erweitert",
+        "en": "Advanced"
+      }
+    },
+    {
+      "id": "performance",
+      "label": {
+        "de": "Leistung",
+        "en": "Performance"
+      }
+    }
+  ]
+}

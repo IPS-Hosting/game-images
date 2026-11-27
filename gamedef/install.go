@@ -3,6 +3,7 @@ package gamedef
 import (
 	"fmt"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -14,6 +15,10 @@ const DefaultInstallerImage = "ipshosting/installer:v1"
 // the installer container. Credentials and branch passwords go into the runscript, never
 // into argv or the container environment.
 const SteamcmdRunscriptPath = "/tmp/ips-steamcmd.txt"
+
+// SteamHomePath is HOME of steamcmd stages: a private per-stage directory outside the data
+// directory (Steam config and token cache), mounted by the engine and deleted after the stage.
+const SteamHomePath = EnginePath + "/steam-home"
 
 // InstallOptions control the install rendering.
 type InstallOptions struct {
@@ -58,8 +63,9 @@ type SteamcmdStage struct {
 
 // DownloadStage is a rendered download stage.
 type DownloadStage struct {
-	URL             string `json:"url"`
-	Checksum        string `json:"checksum,omitempty"`
+	URL string `json:"url"`
+	// Checksum is always set (sha256:<hex>); engines refuse a download stage without it.
+	Checksum        string `json:"checksum"`
 	Dest            string `json:"dest"`
 	Format          string `json:"format"`
 	StripComponents int    `json:"stripComponents"`
@@ -118,69 +124,53 @@ func checkSteamTokens(tokens ...string) error {
 
 // RenderInstall renders the install plan of one game server.
 func RenderInstall(d *Definition, values Values, options InstallOptions) (*InstallPlan, error) {
-	r := newRenderer(d, values)
+	r, err := newRenderer(d, values)
+	if err != nil {
+		return nil, err
+	}
 	installer := options.InstallerImage
 	if installer == "" {
 		installer = DefaultInstallerImage
 	}
 	plan := &InstallPlan{}
+	var steamSDK []PlanHookOp
 
 	for i, stage := range d.Install {
-		at := fmt.Sprintf("/install/%d", i)
-		include, err := r.when(at+"/when", stage.When)
-		if err != nil {
-			return nil, err
-		}
-		if !include {
+		if !r.when(stage.When) {
 			continue
 		}
-		rendered := PlanStage{Kind: stage.Kind, Image: installer, Env: baseEnv(d, values), WorkingDir: d.Runtime.DataPath}
+		at := fmt.Sprintf("/install/%d", i)
+		rendered := PlanStage{Kind: stage.Kind, Image: installer, Env: baseEnv(d, values), WorkingDir: d.Run.DataPath}
 		if err := r.env(at+"/env", stage.Env, rendered.Env); err != nil {
 			return nil, err
 		}
 
 		switch stage.Kind {
 		case StageSteamcmd:
-			dir := d.Runtime.DataPath
+			dir := "."
 			if stage.Dir != "" {
-				rel, err := r.relPath(at+"/dir", stage.Dir)
-				if err != nil {
-					return nil, err
-				}
-				dir = path.Join(d.Runtime.DataPath, rel)
+				dir = path.Clean(stage.Dir)
 			}
-			branch, err := r.scalar(at+"/branch", stage.Branch)
+			branch, password, err := r.branch(at, stage)
 			if err != nil {
 				return nil, err
 			}
-			branchPassword, err := r.text(at+"/branchPassword", stage.BranchPassword)
-			if err != nil {
-				return nil, err
-			}
-			if strings.ContainsAny(branch+branchPassword, "\"\r\n") {
-				return nil, fmt.Errorf("%s: branch and branch password must not contain quotes or line breaks", at)
-			}
+			rendered.Env["HOME"] = SteamHomePath
 			rendered.Steamcmd = &SteamcmdStage{
-				AppID: stage.AppID, Dir: dir, Login: stage.Login, Platform: stage.Platform,
-				Branch: branch, BranchPassword: branchPassword, Validate: options.Validate, ExtraArgs: stage.ExtraArgs,
+				AppID: stage.AppID, Dir: path.Join(d.Run.DataPath, dir), Login: stage.Login, Platform: stage.Platform,
+				Branch: branch, BranchPassword: password, Validate: options.Validate, ExtraArgs: stage.ExtraArgs,
 			}
 			rendered.Command = []string{"steamcmd", "+runscript", SteamcmdRunscriptPath}
+			if stage.SteamSDK {
+				steamSDK = append(steamSDK, steamSDKHooks(dir)...)
+			}
 
 		case StageDownload:
-			url, err := r.scalar(at+"/url", stage.URL)
-			if err != nil {
-				return nil, err
-			}
-			if !strings.HasPrefix(url, "https://") {
-				return nil, fmt.Errorf("%s/url: only https downloads are allowed", at)
-			}
 			dest := "."
 			if stage.Dest != "" {
-				if dest, err = r.relPath(at+"/dest", stage.Dest); err != nil {
-					return nil, err
-				}
+				dest = path.Clean(stage.Dest)
 			}
-			download := &DownloadStage{URL: url, Checksum: stage.Checksum, Dest: dest, Format: "none"}
+			download := &DownloadStage{URL: stage.URL, Checksum: stage.Checksum, Dest: dest, Format: "none"}
 			if stage.Extract != nil {
 				if stage.Extract.Format != "" {
 					download.Format = stage.Extract.Format
@@ -191,36 +181,9 @@ func RenderInstall(d *Definition, values Values, options InstallOptions) (*Insta
 
 		case StageScript:
 			if stage.Image != "" {
-				image, err := r.scalar(at+"/image", stage.Image)
-				if err != nil {
-					return nil, err
-				}
-				if err := CheckImage(image); err != nil {
-					return nil, fmt.Errorf("%s/image: %w", at, err)
-				}
-				rendered.Image = image
+				rendered.Image = stage.Image
 			}
 			rendered.Command = []string{"/bin/sh", "-c", stage.Shell}
-
-		case StageContainer:
-			image, err := r.scalar(at+"/image", stage.Image)
-			if err != nil {
-				return nil, err
-			}
-			if err := CheckImage(image); err != nil {
-				return nil, fmt.Errorf("%s/image: %w", at, err)
-			}
-			rendered.Image = image
-			for j, arg := range stage.Args {
-				value, err := r.text(fmt.Sprintf("%s/args/%d", at, j), arg)
-				if err != nil {
-					return nil, err
-				}
-				if strings.ContainsRune(value, 0) {
-					return nil, fmt.Errorf("%s/args/%d: argument contains a NUL byte", at, j)
-				}
-				rendered.Command = append(rendered.Command, value)
-			}
 
 		default:
 			return nil, fmt.Errorf("%s: unsupported install stage %q", at, stage.Kind)
@@ -228,10 +191,55 @@ func RenderInstall(d *Definition, values Values, options InstallOptions) (*Insta
 		plan.Stages = append(plan.Stages, rendered)
 	}
 
-	var err error
-	plan.PostInstall, err = r.hooks("/hooks/postInstall", d.Hooks.PostInstall)
+	hooks, err := r.hooks("/hooks/postInstall", d.Hooks.PostInstall)
 	if err != nil {
 		return nil, err
 	}
+	plan.PostInstall = append(steamSDK, hooks...)
 	return plan, nil
+}
+
+// branchPattern is the syntax of Steam beta branch names.
+var branchPattern = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
+
+// branch resolves the beta branch and its password of a steamcmd stage.
+func (r *renderer) branch(at string, stage InstallStage) (string, string, error) {
+	var branch, password string
+	if stage.Beta != nil {
+		branch = strings.TrimSpace(r.settings[stage.Beta.BranchSetting])
+		if strings.EqualFold(branch, "public") {
+			branch = ""
+		}
+		if branch != "" && stage.Beta.PasswordSetting != "" {
+			password = r.settings[stage.Beta.PasswordSetting]
+		}
+	} else if stage.Branch != "" {
+		rendered, err := r.text(at+"/branch", stage.Branch)
+		if err != nil {
+			return "", "", err
+		}
+		branch = strings.TrimSpace(rendered)
+	}
+	if branch != "" && !branchPattern.MatchString(branch) {
+		return "", "", fmt.Errorf("%s: invalid beta branch %q (letters, digits, . _ -, at most 64)", at, branch)
+	}
+	if err := checkSteamTokens(password); err != nil {
+		return "", "", fmt.Errorf("%s: %w", at, err)
+	}
+	return branch, password, nil
+}
+
+// steamSDKHooks links the Steam client libraries of a steamcmd install directory to where
+// SteamAPI_Init looks for them (~/.steam/sdk64 and sdk32). Links follow updates of the
+// install directory; a missing linux32 library leaves a harmless dangling link.
+func steamSDKHooks(dir string) []PlanHookOp {
+	var ops []PlanHookOp
+	for _, bits := range []string{"64", "32"} {
+		sdk := ".steam/sdk" + bits
+		ops = append(ops,
+			PlanHookOp{EnsureDir: &EnsureDir{Path: sdk}},
+			PlanHookOp{Symlink: &Symlink{Target: path.Join(dir, "linux"+bits, "steamclient.so"), Link: sdk + "/steamclient.so"}},
+		)
+	}
+	return ops
 }

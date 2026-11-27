@@ -188,13 +188,6 @@ func (c *TemplateContext) render(name string, text string, cache templateCache) 
 	return out.String(), nil
 }
 
-// truthyString implements the `when` rule: rendered and trimmed, empty, 0 and false
-// (case-insensitive) are falsy.
-func truthyString(value string) bool {
-	trimmed := strings.TrimSpace(value)
-	return trimmed != "" && trimmed != "0" && !strings.EqualFold(trimmed, "false")
-}
-
 // templateRefs holds the settings and ports referenced by one template.
 type templateRefs struct {
 	settings map[string]struct{}
@@ -228,6 +221,9 @@ func walkNode(node parse.Node, rootDot bool, refs *templateRefs) error {
 		}
 		return walkNode(n.ElseList, rootDot, refs)
 	case *parse.RangeNode:
+		if !rangesOverSettingList(n.Pipe, rootDot) {
+			return fmt.Errorf("range is only allowed over .SettingList")
+		}
 		return walkScopeNode(&n.BranchNode, rootDot, refs)
 	case *parse.WithNode:
 		return walkScopeNode(&n.BranchNode, rootDot, refs)
@@ -252,6 +248,24 @@ func walkNode(node parse.Node, rootDot bool, refs *templateRefs) error {
 		return fmt.Errorf("unexpected template node %T", node)
 	}
 	return nil
+}
+
+// rangesOverSettingList reports whether a range pipeline is exactly a .SettingList "key" call
+// on the template context (bounded by the setting value), optionally with declarations.
+func rangesOverSettingList(pipe *parse.PipeNode, rootDot bool) bool {
+	if pipe == nil || len(pipe.Cmds) != 1 || len(pipe.Cmds[0].Args) != 2 {
+		return false
+	}
+	if _, ok := pipe.Cmds[0].Args[1].(*parse.StringNode); !ok {
+		return false
+	}
+	switch first := pipe.Cmds[0].Args[0].(type) {
+	case *parse.FieldNode:
+		return rootDot && len(first.Ident) == 1 && first.Ident[0] == "SettingList"
+	case *parse.VariableNode:
+		return len(first.Ident) == 2 && first.Ident[0] == "$" && first.Ident[1] == "SettingList"
+	}
+	return false
 }
 
 // walkScopeNode walks with and range. The pipeline and the else branch see the outer dot,
@@ -378,4 +392,59 @@ func checkRoot(ident []string) error {
 		return fmt.Errorf("template field %q is not part of the template context", "."+strings.Join(ident, "."))
 	}
 	return nil
+}
+
+// singleReference recognizes a template that consists of exactly one context reference:
+// {{ .Setting "k" }}, {{ .SettingBool "k" }}, {{ .SettingInt "k" }}, {{ (.Port "id").Container }}
+// (or .Exposed) and {{ .Server.Field }}. It returns the method (Setting, SettingBool,
+// SettingInt, Port, Server) and its argument, or "" for anything else.
+func singleReference(text string) (string, string) {
+	tmpl, err := texttemplate.New("").Funcs(funcMap).Parse(text)
+	if err != nil || tmpl.Tree == nil || len(tmpl.Tree.Root.Nodes) != 1 {
+		return "", ""
+	}
+	action, ok := tmpl.Tree.Root.Nodes[0].(*parse.ActionNode)
+	if !ok || len(action.Pipe.Decl) > 0 || len(action.Pipe.Cmds) != 1 {
+		return "", ""
+	}
+	args := action.Pipe.Cmds[0].Args
+	switch first := args[0].(type) {
+	case *parse.FieldNode:
+		if len(first.Ident) == 2 && first.Ident[0] == "Server" && len(args) == 1 {
+			return "Server", first.Ident[1]
+		}
+		if len(first.Ident) == 1 && len(args) == 2 {
+			if key, ok := args[1].(*parse.StringNode); ok {
+				switch first.Ident[0] {
+				case "Setting", "SettingBool", "SettingInt":
+					return first.Ident[0], key.Text
+				}
+			}
+		}
+	case *parse.ChainNode:
+		inner, ok := first.Node.(*parse.PipeNode)
+		if !ok || len(args) != 1 || len(first.Field) != 1 || (first.Field[0] != "Container" && first.Field[0] != "Exposed") ||
+			len(inner.Cmds) != 1 || len(inner.Cmds[0].Args) != 2 {
+			return "", ""
+		}
+		field, isField := inner.Cmds[0].Args[0].(*parse.FieldNode)
+		key, isString := inner.Cmds[0].Args[1].(*parse.StringNode)
+		if isField && isString && len(field.Ident) == 1 && field.Ident[0] == "Port" {
+			return "Port", key.Text
+		}
+	}
+	return "", ""
+}
+
+// templateSettings returns the settings a template references (nil if it does not parse).
+func templateSettings(text string) []string {
+	tmpl, err := texttemplate.New("").Funcs(funcMap).Parse(text)
+	if err != nil || tmpl.Tree == nil {
+		return nil
+	}
+	refs := templateRefs{settings: map[string]struct{}{}, ports: map[string]struct{}{}}
+	if walkNode(tmpl.Tree.Root, true, &refs) != nil {
+		return nil
+	}
+	return sortedKeys(refs.settings)
 }

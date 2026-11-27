@@ -37,3 +37,6 @@ jobs:
 
       - name: Validate catalog
         run: go run ./cmd/gamedef validate -root ..
+
+      - name: Check pinned images
+        run: go run ./cmd/gamedef images -check -root ..
