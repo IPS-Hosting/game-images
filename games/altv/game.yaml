@@ -6,7 +6,8 @@
 #   - game-images altv/Dockerfile + altv/entrypoint.sh (alt:V server updater, npm/yarn install
 #     and build of the customer's resources)
 #   - api prisma/seed GamePort.ts / GameFilePermission.ts / game.ts
-# STATUS: needs M3 installer
+# STATUS: not boot-tested: the alt:V CDN (cdn.alt-mp.com) did not resolve on 2026-11-27; production needs
+# the M3 installer
 #
 # TODO(M4): ipsd fills the query from the public master list (api.altv.mp/servers/list,
 #   matched by IPv4 and exposed game port). No gamedef query protocol can do that, and the

@@ -1,5 +1,5 @@
 # Counter-Strike 2 — new game, derived from the Pelican egg (games-steamcmd counter_strike_2).
-# STATUS: validated
+# STATUS: boot-tested (2026-11-28, game2)
 #
 # Replaces the discontinued CS:GO game (no production data); existing CS:GO servers move over by
 # switching the game.
@@ -59,9 +59,13 @@ run:
     pattern: 'Connection to Steam servers successful'
 
 install:
-  # steamSdk links linux64/steamclient.so to ~/.steam/sdk64, where the server loads it.
   - kind: steamcmd
     appId: 730
+  # Steamworks SDK redistributable: steamSdk links its steamclient.so to ~/.steam/sdk64, where the
+  # server loads it (app 730 does not ship one).
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
     steamSdk: true
 
 query:
@@ -153,6 +157,7 @@ backupIgnore:
   - game/core/*.vpk
   - game/csgo/*.vpk
   - steamapps/**
+  - steamworks/**
 
 requirements:
   minCpuThreads: 2

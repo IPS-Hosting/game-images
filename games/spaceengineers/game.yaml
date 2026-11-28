@@ -1,5 +1,6 @@
 # Space Engineers — new game, Windows-only dedicated server under Wine, based on the Pelican egg.
-# STATUS: needs Wine runtime (M3) (also needs the M3 installer: winetricks script stage)
+# STATUS: boot-tested (2026-11-28, game2); production needs the Wine runtime and the M3 installer
+# (winetricks stage)
 #
 # Runs under the pelican wine_latest yolk. Start arguments, ports, ready line, the managed XML keys,
 # the winetricks list and the starter world follow the pelican egg (space_engineers/default). The
@@ -29,8 +30,12 @@ run:
     # The server is a .NET application: mscoree must stay enabled (wine-mono).
     WINEDLLOVERRIDES: mscoree=n,b;mshtml=n,b;winemenubuilder.exe=d
     DISPLAY: ':99'
-  # The server logs to stdout, so it is exec'd directly and gets the stop signal itself (Wine turns
-  # SIGINT into CTRL_C_EVENT, the server saves and exits).
+  # `wine` runs the server as its own Unix process (start.exe /exec stays the parent and ignores
+  # SIGINT), so the trap forwards the stop signal to the server, which saves and shuts down. Then
+  # it waits for "press any key" on its console; the trap ends it once the log says Steam closed
+  # (at most 100 s: the log is not always flushed in time; the world is saved before).
+  # The server stays in the foreground terminal: with a pipe on stdout, Wine's console does not
+  # write to stdout. Boot test 2026-11-28: stop in 4–100 s, world saved.
   shell: |
     if [ ! -f "$WINEPREFIX/system.reg" ]; then
       echo "The Wine prefix is missing. Reinstall the server to recreate it." >&2
@@ -39,8 +44,28 @@ run:
     Xvfb :99 -screen 0 1024x768x16 -nolisten tcp >/dev/null 2>&1 &
     i=0
     while [ ! -e /tmp/.X11-unix/X99 ] && [ "$i" -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
-    exec wine ./DedicatedServer64/SpaceEngineersDedicated.exe \
-      -path 'Z:\home\container\config' -console -ignorelastsession
+    game_pids() {
+      for p in /proc/[0-9]*; do
+        case "$(tr '\0' '\n' 2>/dev/null < "$p/cmdline" | head -n 1)" in
+          *SpaceEngineersDedicated.exe) echo "${p#/proc/}" ;;
+        esac
+      done
+    }
+    stop_server() {
+      for pid in $(game_pids); do kill -INT "$pid" 2>/dev/null; done
+      log=$(ls -t config/SpaceEngineersDedicated_*.log 2>/dev/null | head -n 1)
+      i=0
+      while [ -n "$log" ] && [ "$i" -lt 100 ] && ! grep -q -- '-> *Steam closed' "$log"; do
+        sleep 1; i=$((i + 1))
+      done
+      for pid in $(game_pids); do kill -TERM "$pid" 2>/dev/null; done
+    }
+    trap stop_server INT TERM
+    wine ./DedicatedServer64/SpaceEngineersDedicated.exe \
+      -path 'Z:\home\container\config' -console -ignorelastsession &
+    i=0
+    while [ -z "$(game_pids)" ] && [ "$i" -lt 600 ]; do sleep 0.1; i=$((i + 1)); done
+    while [ -n "$(game_pids)" ]; do sleep 1 & wait $!; done
   console:
     via: none
   stop:

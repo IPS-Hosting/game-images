@@ -2,7 +2,7 @@
 # Legacy sources: ipsd game/rust.go (env, setting keys, stop command, query), rust/entrypoint.sh
 # (start command, install) and the api seeds (defaults, ports, files). Setting keys follow ipsd,
 # which reads camelCase keys; the seeds still list some of them in lower case.
-# STATUS: validated (boot-test risks: steamSdk links, ready pattern, query port)
+# STATUS: boot-tested (2026-11-28, game2)
 #
 # The server identity stays "ips-hosting", so saves remain in server/ips-hosting.
 #
@@ -111,12 +111,16 @@ run:
     pattern: 'Server startup complete'
 
 install:
-  # steamSdk replaces post_update() of the production image (copies of the steamcmd client
-  # libraries). Existing servers keep their copies: ips-init leaves regular files alone.
-  # TODO(M3): verify that app 258550 ships linux64/steamclient.so (boot test).
   - kind: steamcmd
     appId: 258550
     beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # Steamworks SDK redistributable: provides steamclient.so for ~/.steam/sdk64 and sdk32 and
+  # replaces post_update() of the production image (copies of the steamcmd client libraries).
+  # App 258550 has no linux64/ directory (its 64-bit library is at the top level). Existing
+  # servers keep their copies: ips-init leaves regular files alone.
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
     steamSdk: true
 
 query:
@@ -289,6 +293,7 @@ backupIgnore:
   - /Steam
   - /steamapps
   - /Bundles
+  - /steamworks
 
 requirements:
   minCpuThreads: 2

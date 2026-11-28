@@ -1,5 +1,6 @@
 # DayZ — new game, derived from the Pelican egg (games-steamcmd dayz).
-# STATUS: validated (boot-test risks: host Steam account with DayZ licence required, ports +1..+3)
+# STATUS: out of scope for now (needs a host Steam account that owns DayZ; to be evaluated later).
+# Not boot-tested and not offered until then. Boot-test risks: host Steam login, ports +1..+3.
 #
 # The dedicated server (app 223350) can only be downloaded by a Steam account that owns DayZ, so
 # the install uses the host's Steam login (login: host). The image entrypoint (mod downloads via

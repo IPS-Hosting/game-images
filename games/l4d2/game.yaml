@@ -72,14 +72,6 @@ install:
     dir: steamworks
     steamSdk: true
 
-hooks:
-  postInstall:
-    # steamSdk links .steam/sdk32 to steamworks/linux32/steamclient.so, but app 1007 has its 32-bit
-    # library at steamworks/steamclient.so (srcds: "Unable to load Steam support library").
-    - symlink:
-        target: steamworks/steamclient.so
-        link: .steam/sdk32/steamclient.so
-
 query:
   protocol: a2s
   port: game

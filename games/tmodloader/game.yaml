@@ -20,8 +20,8 @@ run:
   image: ghcr.io/pelican-eggs/yolks:dotnet_8@sha256:81874feb2d5d16a2fcdb2041bb4d276ab61982a86f05b17be1c9d047e2ea9d41
   dataPath: /home/container
   workingDir: server
-  # No tmpfs at /tmp: Docker mounts it noexec, and MonoMod (tML startup) writes mm-exhelper.so
-  # to /tmp and loads it. The private tmp directory (bind mount) allows that.
+  # No tmpfs at /tmp: MonoMod (tML startup) writes mm-exhelper.so to /tmp and loads it; the
+  # private tmp directory (bind mount, like production) is enough.
   env:
     DOTNET_CLI_TELEMETRY_OPTOUT: '1'
   exec:

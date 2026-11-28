@@ -2,7 +2,8 @@
 # Legacy sources: ipsd game/ark.go (env, RCON console, query, backup ignore list), ark/entrypoint.sh
 # (start command, install, symlinks) and the api seeds (settings, ports, files). Setting keys,
 # defaults, ports and the data layout match production.
-# STATUS: needs M3 installer (script stage for the Steam client libraries and the steamcmd copy that -automanagedmods uses)
+# STATUS: boot-tested (2026-11-28, game2), with an installer stand-in; production needs the M3 installer image
+# (script stage for the Steam client libraries and the steamcmd copy that -automanagedmods uses)
 apiVersion: 1
 
 short: ark
@@ -38,12 +39,11 @@ run:
     ALLOW_FLYER_CARRY_PVE: '{{ .SettingBool "allowFlyerCarryPvE" | boolInt }}'
     NO_BATTLEYE: '{{ .SettingBool "noBattleye" | boolInt }}'
     PUBLIC_IP: '{{ .Server.IPv4 }}'
-  # Same command line as entrypoint.sh start(). The travel URL is expanded unquoted on purpose
-  # (with globbing off): production built it with eval, so a session name with spaces reached
-  # the server as several arguments, which ARK joins again. A single quoted argument would be
-  # re-quoted by the engine at the first "=" and break the URL.
+  # Same command line as entrypoint.sh start(), with one fix: the travel URL is a single argument.
+  # Production built it with eval, so a session name with spaces reached the server as several
+  # arguments and ARK used only the first word (boot test 2026-11-28: "ARK:" instead of the full
+  # name; quoted, the full name is listed).
   shell: |
-    set -f
     url="$MAP?listen?MultiHome=0.0.0.0?Port=$GAME_PORT?QueryPort=$QUERY_PORT?RCONPort=$RCON_PORT?RCONEnabled=$RCON_ENABLED?MaxPlayers=$MAX_PLAYERS"
     if [ -n "$SESSION_NAME" ]; then url="$url?SessionName=$SESSION_NAME"; fi
     url="$url?bRawSockets"
@@ -57,7 +57,7 @@ run:
     if [ "$SERVER_GAME_LOG_INCLUDE_TRIBE_LOGS" = 1 ]; then set -- "$@" -servergamelogincludetribelogs; fi
     if [ "$FORCE_ALLOW_CAVE_FLYERS" = 1 ]; then set -- "$@" -ForceAllowCaveFlyers; fi
     if [ "$NO_BATTLEYE" = 1 ]; then set -- "$@" -NoBattlEye; fi
-    exec ./ShooterGameServer $url "$@"
+    exec ./ShooterGameServer "$url" "$@"
   # ARK ignores stdin; ipsd sent console commands over RCON.
   # TODO(M4): ipsd used a setting "rconPassword" that the seeds do not have. ARK authenticates
   # RCON with ServerAdminPassword, which is used here; check the production setting rows.
@@ -67,14 +67,14 @@ run:
     passwordSetting: serverAdminPassword
   stop:
     # Production sent SIGTERM to the entrypoint shell, which ignored it, so the server was
-    # killed after 10 s. SIGINT reaches the server directly.
-    # TODO(M3): verify in the boot test that the world is saved on SIGINT.
+    # killed after 10 s. SIGINT reaches the server directly; it saves TheIsland.ark and exits
+    # within seconds (boot test 2026-11-28).
     via: signal
     signal: SIGINT
     timeoutSeconds: 60
-  ready:
-    # TODO(M3): verify in the boot test.
-    pattern: 'has completed startup and is now advertising for join'
+  # No ready pattern: ARK prints nothing after the Steam init to stdout (not even with -log, and
+  # ShooterGame.log stays empty), so the server counts as ready once it runs. Boot test 2026-11-28:
+  # A2S answers after about 100 s.
 
 install:
   - kind: steamcmd

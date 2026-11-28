@@ -42,8 +42,8 @@ run:
       LATEST: itzg/minecraft-server:latest@sha256:f4375fbbc3e5f797c394856739ea664442d2b5c647470d2c9c7735a96406f8d3
   # The itzg image expects its data at /data; production mounts the server volume there.
   dataPath: /data
-  # No tmpfs at /tmp: the private tmp directory (bind mount, like production) is writable, and a
-  # Docker tmpfs is noexec, so JNA (oshi system report) could not load its native library.
+  # No tmpfs at /tmp: the private tmp directory (bind mount, like production) is writable and
+  # JNA (oshi system report) loads its native library from there.
   # Boolean settings render as true/false and stay empty when the setting has no value, exactly
   # like ipsd's boolSettingEnvValue, so the image keeps its own default in that case.
   env:

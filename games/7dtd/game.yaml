@@ -1,5 +1,5 @@
 # 7 Days to Die — new game, derived from the Pelican egg (games-steamcmd 7_days_to_die).
-# STATUS: validated (boot-test risks: ready pattern, query port, telnet stdin forwarding)
+# STATUS: boot-tested (2026-11-27, game2)
 #
 # The egg attaches a telnet client to the admin console; here the start shell forwards the
 # panel console (stdin) to the telnet port, which stays loopback-only (no telnet password).

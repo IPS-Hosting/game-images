@@ -3,7 +3,8 @@
 # and gmod/mount.cfg (start command, install, CSS content) and the api seeds (settings, ports, files).
 # Setting keys, defaults, ports and the data layout match production, so existing servers keep
 # their values, addons and saves.
-# STATUS: needs M3 installer (script stage for the Steam client libraries and the CSS content)
+# STATUS: boot-tested (2026-11-27, game2, with an installer stand-in); production needs the M3 installer
+# image (script stage for the Steam client libraries and the CSS content)
 #
 # The production game does not manage server.cfg (hostname, passwords and rcon_password stay in
 # garrysmod/cfg/server.cfg, owned by the customer), so this definition does not either.

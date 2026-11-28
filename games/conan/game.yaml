@@ -1,5 +1,5 @@
 # Conan Exiles — new game (Enhanced, native Linux server), derived from the Pelican egg (games-steamcmd conan_exiles).
-# STATUS: validated (boot-test risks: config directory name, ready pattern)
+# STATUS: boot-tested (2026-11-28, game2)
 #
 # Since the Enhanced update the dedicated server ships a native Linux binary, so no Wine runtime
 # is needed (the legacy egg used Wine).
@@ -36,7 +36,8 @@ run:
   stop:
     via: signal
     signal: SIGINT
-    timeoutSeconds: 60
+    # The shutdown (world save, server-directory requests) took about 80s in the boot test.
+    timeoutSeconds: 120
   ready:
     pattern: 'Started SourceServerQueries'
 

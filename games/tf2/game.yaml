@@ -1,5 +1,5 @@
 # Team Fortress 2 — new game, derived from the Pelican egg for custom Source engine games.
-# STATUS: validated (boot-test risks: 64-bit start script)
+# STATUS: boot-tested (2026-11-28, game2)
 #
 # Egg: games-steamcmd custom-source-engine with SRCDS_APPID=232250, SRCDS_GAME=tf (TF2 has no own
 # egg). Uses the 64-bit server (srcds_run_64) that TF2 ships since 2024.

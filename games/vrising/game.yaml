@@ -1,7 +1,8 @@
 # V Rising — Windows server under Wine; migration target for the existing platform game.
 # Legacy sources: ipsd game/vrising.go, vrising/entrypoint.sh. Setting keys and paths (saves in
 # data/) match the production game.
-# STATUS: needs Wine runtime (M3)
+# STATUS: partly boot-tested (2026-11-27, game2): install and ready ok, the A2S query was not
+# answered (see query); production needs the Wine runtime (M3)
 #
 # Own image with wine + xvfb; WINEPREFIX stays at the production default ~/.wine inside the data
 # directory.
@@ -62,6 +63,9 @@ install:
     beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
 
 query:
+  # TODO(M4): the boot test got no A2S answer on the query port (default ServerHostSettings.json).
+  # Compare with a production server before the migration; without an answer the panel shows no
+  # players or map.
   protocol: a2s
   port: query
 

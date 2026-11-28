@@ -1,7 +1,7 @@
 # Satisfactory — migration target for the existing platform game.
 # Legacy sources: ipsd game/satisfactory.go, satisfactory/entrypoint.sh. Ports and setting keys
 # follow the production game; the production port rows are verified before the switch (M4).
-# STATUS: validated
+# STATUS: boot-tested (2026-11-27, game2)
 apiVersion: 1
 
 short: satisfactory

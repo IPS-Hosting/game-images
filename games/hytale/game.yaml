@@ -5,7 +5,8 @@
 #     stop with /stop, persistent /etc/machine-id, query of the WebServer plugin)
 #   - game-images hytale/Dockerfile + hytale/entrypoint.sh (start command reimplemented below;
 #     the image's start function only builds the same java command line)
-# STATUS: needs M3 installer
+# STATUS: not boot-tested: the installer needs a device login with a Hytale account (2026-11-27);
+# production needs the M3 installer
 #
 # TODO(M4): CurseForge mods need an engine feature; hytale stays on the legacy implementation
 #   until then. ipsd installs the mods enabled in the panel (setting cfMods, managed on the

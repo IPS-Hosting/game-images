@@ -2,7 +2,8 @@
 # Legacy sources: ipsd game/csgo.go (env, stop command, query), csgo/entrypoint.sh (start command,
 # install fixes) and the api seeds (settings, ports, files). Setting keys, defaults, ports and the
 # data layout match production.
-# STATUS: needs M3 installer (script stage for the Steam client libraries)
+# STATUS: boot-tested (2026-11-28, game2), with an installer stand-in; production needs the M3 installer image
+# (script stage for the Steam client libraries)
 #
 # New servers should use games/cs2 (app 730, own keys and data layout); existing CS:GO servers
 # move there by switching the game.
@@ -92,6 +93,9 @@ install:
           cp "$STEAMCMD_DIR/linux$bits/steamclient.so" ".steam/sdk$bits/steamclient.so"
         fi
       done
+      # The bundled libgcc_s is older than the one the libstdc++ of the image (Ubuntu 24.04)
+      # needs: srcds fails with "version GCC_7.0.0 not found". Every update restores it.
+      rm -f bin/libgcc_s.so.1
 
 hooks:
   # The remaining fixes of post_update(), applied after every install, update and validate.

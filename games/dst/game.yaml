@@ -1,5 +1,6 @@
 # Don't Starve Together — new game, derived from the Pelican egg (games-steamcmd dont_starve).
-# STATUS: validated (boot-test risks: two-shard start/stop, ready pattern)
+# STATUS: partly boot-tested (2026-11-27, game2): install and start ok; ready needs a real Klei cluster
+# token
 #
 # One cluster with the Master shard and an optional Caves shard, both in this container (the egg
 # uses a bash coproc; here a FIFO on /tmp feeds the Caves console). The panel console talks to the

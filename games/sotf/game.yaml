@@ -1,5 +1,6 @@
 # Sons of the Forest — new game, Windows-only dedicated server under Wine, based on the Pelican egg.
-# STATUS: needs Wine runtime (M3) (also needs the M3 installer: winetricks script stage)
+# STATUS: boot-tested (2026-11-28, game2); production needs the Wine runtime and the M3 installer
+# (winetricks stage)
 #
 # Runs under the pelican wine_latest yolk. Start arguments, ports, ready line and the config file
 # follow the pelican egg; the winetricks setup of the yolk entrypoint runs once as an install stage.
@@ -30,8 +31,9 @@ run:
     QUERY_PORT: '{{ (.Port "query").Container }}'
     BLOBSYNC_PORT: '{{ (.Port "blobsync").Container }}'
     SKIP_NETWORK_TEST: '{{ ternary "true" "false" (.SettingBool "skipNetworkTest") }}'
-  # The server logs to stdout, so it is exec'd directly and gets the stop signal itself (Wine turns
-  # SIGINT into CTRL_C_EVENT).
+  # `wine` runs the server as its own Unix process (start.exe /exec stays the parent and ignores
+  # SIGINT), so the trap forwards the stop signal to the server: it saves ("Emergency Shutdown",
+  # autosave) and exits. Boot test 2026-11-28: stop in 6 s.
   shell: |
     if [ ! -f "$WINEPREFIX/system.reg" ]; then
       echo "The Wine prefix is missing. Reinstall the server to recreate it." >&2
@@ -40,14 +42,25 @@ run:
     Xvfb :99 -screen 0 1024x768x16 -nolisten tcp >/dev/null 2>&1 &
     i=0
     while [ ! -e /tmp/.X11-unix/X99 ] && [ "$i" -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
-    exec wine ./SonsOfTheForestDS.exe -userdatapath /home/container/serverconfig \
+    game_pids() {
+      for p in /proc/[0-9]*; do
+        case "$(tr '\0' '\n' 2>/dev/null < "$p/cmdline" | head -n 1)" in
+          *SonsOfTheForestDS.exe) echo "${p#/proc/}" ;;
+        esac
+      done
+    }
+    trap 'for pid in $(game_pids); do kill -INT "$pid" 2>/dev/null; done' INT TERM
+    wine ./SonsOfTheForestDS.exe -userdatapath /home/container/serverconfig \
       -dedicatedserver.IpAddress 0.0.0.0 \
       -dedicatedserver.GamePort "$GAME_PORT" \
       -dedicatedserver.QueryPort "$QUERY_PORT" \
       -dedicatedserver.BlobSyncPort "$BLOBSYNC_PORT" \
       -dedicatedserver.SkipNetworkAccessibilityTest "$SKIP_NETWORK_TEST" \
       -dedicatedserver.LogFilesEnabled true \
-      -dedicatedserver.TimestampLogFilenames true
+      -dedicatedserver.TimestampLogFilenames true &
+    i=0
+    while [ -z "$(game_pids)" ] && [ "$i" -lt 600 ]; do sleep 0.1; i=$((i + 1)); done
+    while [ -n "$(game_pids)" ]; do sleep 1 & wait $!; done
   console:
     via: none
   stop:
@@ -192,6 +205,12 @@ hooks:
     # Without it the self-test creates the file, logs "Please restart the server." and hangs.
     - writeFile: { path: steam_appid.txt, content: '1326470', mode: '0644', ifMissing: true }
   preStart:
+    # Same for a missing owners whitelist (the self-test creates it and hangs).
+    - when: { setting: owners, in: ['', '[]'] }
+      writeFile:
+        path: serverconfig/ownerswhitelist.txt
+        content: "# SteamID64 of the server owners, one per line.\n"
+        ifMissing: true
     - when: { not: { setting: owners, in: ['', '[]'] } }
       writeFile:
         path: serverconfig/ownerswhitelist.txt

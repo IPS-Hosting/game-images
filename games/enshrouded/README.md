@@ -110,8 +110,12 @@ console: { via: none }
 ips-init forwards the stop signal to its direct child only, so the start command must make sure the
 server process itself gets SIGINT:
 
-- **Server logs to stdout** (`sotf`, `spaceengineers`): `exec wine ./Server.exe ...`. Wine runs the
-  executable in the exec'd process, so it receives SIGINT directly.
+- **Server logs to stdout** (`sotf`, `spaceengineers`): `wine ./Server.exe ... &` stays in the
+  foreground terminal (with a pipe on stdout, Wine's console does not write to stdout), and a trap
+  forwards SIGINT and SIGTERM to the server process. `exec wine` is not enough: the exec'd process
+  becomes `start.exe /exec`, which ignores SIGINT, and the server runs as its own Unix process
+  (boot test 2026-11-28). Space Engineers then waits for "press any key" on its console; its trap
+  ends the process once the server log says Steam closed.
 - **Server logs only to a file, or runs under Proton** (`enshrouded`, `icarus`, `abioticfactor`): the
   server runs in the background, `tail -c0 -F <log> --pid=<launcher>` copies the log to stdout (for
   the console and `ready.pattern`), and a trap turns SIGINT and SIGTERM into SIGINT for the server

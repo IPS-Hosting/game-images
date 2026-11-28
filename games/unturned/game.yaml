@@ -1,5 +1,5 @@
 # Unturned — new game, derived from the Pelican egg (games-steamcmd unturned).
-# STATUS: validated (boot-test 2026-11-27 game2: install and start ok; ready not reached with a dummy
+# STATUS: partly boot-tested (2026-11-27, game2): install and start ok; ready not reached with a dummy
 #   GSLT, k_EResultAccountNotFound, needs a real GSLT)
 #
 # Server options live in Servers/IPS/Server/Commands.dat (one "Command value" per line); the

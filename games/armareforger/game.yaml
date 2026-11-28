@@ -1,5 +1,5 @@
 # Arma Reforger — new game, derived from the Pelican egg (games-steamcmd arma/arma_reforger).
-# STATUS: validated
+# STATUS: boot-tested (2026-11-28, game2); the stop after a restored session ends with a kill (see stop)
 #
 # The egg writes config.json once at install; here a default file is placed at install and copied
 # to config.json only if it is missing, so values the customer edits (mods, admins, game
@@ -39,7 +39,11 @@ run:
   stop:
     via: signal
     signal: SIGINT
-    timeoutSeconds: 30
+    # After a restored session ("[PERSISTENCE] Session restored") the server hangs on exit after
+    # "Save completed successfully" and "Replication finished" (boot test 2026-11-28, twice): the
+    # engine kills it after the timeout, the save is already written. A fresh playthrough exits in
+    # seconds.
+    timeoutSeconds: 90
   ready:
     pattern: 'Starting RPL server'
 

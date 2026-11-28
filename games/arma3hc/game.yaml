@@ -52,6 +52,10 @@ install:
     appId: 233780
     login: host
     beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # Steamworks SDK redistributable: steamclient.so for ~/.steam/sdk64 and sdk32 (see games/arma3).
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
     steamSdk: true
 
 # TODO(M4): same workshop caveats as games/arma3 (production layout Steam/steamapps/workshop/content/107410
@@ -127,6 +131,7 @@ protectedFiles:
 backupIgnore:
   - /addons/**
   - /Steam/steamapps/workshop/**
+  - /steamworks/**
 
 # No query and no own ports: the platform shows neither players nor a map.
 requirements:

@@ -64,14 +64,16 @@ run:
     pattern: 'Host identity created'
 
 install:
-  # steamSdk links linux64/linux32 steamclient.so to ~/.steam/sdk64 and sdk32 like the production
-  # post_update. Existing servers keep their copied files (ips-init never replaces a regular file).
-  # TODO(M3): boot test that a fresh install finds steamclient.so (the production image copied it from
-  # the steamcmd directory, not from the server directory).
   - kind: steamcmd
     appId: 233780
     login: host
     beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # Steamworks SDK redistributable: provides steamclient.so for ~/.steam/sdk64 and sdk32 like the
+  # production post_update (which copied the steamcmd client libraries). Existing servers keep
+  # their copied files (ips-init never replaces a regular file).
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
     steamSdk: true
 
 # Numeric entries of mods/serverMods are workshop item ids of ARMA 3 (107410), downloaded with the host
@@ -177,6 +179,7 @@ protectedFiles:
 backupIgnore:
   - /addons/**
   - /Steam/steamapps/workshop/**
+  - /steamworks/**
 
 requirements:
   minCpuThreads: 2

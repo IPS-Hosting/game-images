@@ -1,5 +1,5 @@
 # Soulmask — new game, derived from the Pelican egg (games-steamcmd soulmask).
-# STATUS: validated (boot-test risks: save on SIGINT, echo port forwarding)
+# STATUS: boot-tested (2026-11-28, game2)
 #
 # The admin console is the unauthenticated "echo" (telnet) port; it stays inside the container
 # (never published) and the start shell forwards the panel console to it.
