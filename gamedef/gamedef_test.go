@@ -1033,16 +1033,33 @@ func TestApplyINISectionHeaderComment(t *testing.T) {
 	}
 }
 
-func TestPropertiesValueTrailingBackslash(t *testing.T) {
+// java.util.Properties reads backslashes as escapes and skips leading whitespace: values are
+// escaped, so the game reads exactly the rendered value.
+func TestPropertiesValuesAreEscaped(t *testing.T) {
 	d := mustParse(t, withRun(base, "")+"config: [{ path: server.properties, format: properties, values: { motd: '{{ .Setting \"name\" }}' } }]\n")
 	values := DefaultValues(d)
 	values.Settings["name"] = `Welcome\`
-	if _, err := Render(d, values); err == nil || !strings.Contains(err.Error(), "backslash") {
-		t.Fatalf("expected trailing backslash error, got %v", err)
-	}
-	values.Settings["name"] = `Welcome\\`
 	if _, err := Render(d, values); err != nil {
-		t.Fatalf("an escaped backslash must be accepted: %v", err)
+		t.Fatalf("a trailing backslash is escaped and must be accepted: %v", err)
+	}
+	got := apply(t, FormatProperties, map[string]string{"motd": `C:\Games\ ok\`, "pad": "  x"}, "motd=old\nnext=1\n")
+	if want := "motd=C:\\\\Games\\\\ ok\\\\\nnext=1\npad=\\  x\n"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestXMLKeepsBOMBeforeDeclaration(t *testing.T) {
+	got := apply(t, FormatXML, map[string]string{"Root.Name": "x"}, "\xEF\xBB\xBF\n<?xml version=\"1.0\"?>\n<Root><Name>old</Name></Root>\n")
+	if want := "\xEF\xBB\xBF<?xml version=\"1.0\"?>\n<Root><Name>x</Name></Root>\n"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestReservedTmpfsTargetsIsACopy(t *testing.T) {
+	targets := ReservedTmpfsTargets()
+	targets[0] = "/changed"
+	if ReservedTmpfsTargets()[0] == "/changed" {
+		t.Fatal("ReservedTmpfsTargets must return a copy")
 	}
 }
 

@@ -208,10 +208,15 @@ func applyXML(existing []byte, values map[string]string) ([]byte, error) {
 		out.WriteByte('\n')
 	}
 	result := out.Bytes()
-	// An XML declaration must be the very first thing in the file; strict parsers (.NET)
-	// reject whitespace before it, which some shipped templates have.
-	if trimmed := bytes.TrimLeft(result, " \t\r\n"); bytes.HasPrefix(trimmed, []byte("<?xml")) {
+	// An XML declaration must be the very first thing in the file (after an optional BOM);
+	// strict parsers (.NET) reject whitespace before it, which some shipped templates have.
+	bom := []byte("\xEF\xBB\xBF")
+	body, hadBOM := bytes.CutPrefix(result, bom)
+	if trimmed := bytes.TrimLeft(body, " \t\r\n"); bytes.HasPrefix(trimmed, []byte("<?xml")) {
 		result = trimmed
+		if hadBOM {
+			result = append(append([]byte{}, bom...), trimmed...)
+		}
 	}
 	// The decoder normalizes line endings; restore CRLF files.
 	if bytes.Contains(existing, []byte("\r\n")) {

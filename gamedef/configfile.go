@@ -22,7 +22,7 @@ func ApplyConfig(file PlanConfigFile, existing []byte) ([]byte, error) {
 	case FormatTemplate:
 		return []byte(file.Content), nil
 	case FormatProperties:
-		return applyLines(existing, file.Values, "=", true), nil
+		return applyLines(existing, escapePropertiesValues(file.Values), "=", true), nil
 	case FormatKV:
 		delimiter := file.Delimiter
 		if delimiter == "" {
@@ -472,4 +472,19 @@ func setYAMLScalar(node *yaml.Node, value string, hint string) {
 		(value == "" || literalKind(value) != "" || yaml11Words.MatchString(value)) {
 		node.Style = yaml.DoubleQuotedStyle
 	}
+}
+
+// escapePropertiesValues escapes the values of a properties file, so that java.util.Properties
+// reads exactly the rendered value: a backslash starts an escape sequence (and continues the
+// line at the end of it), and leading whitespace is skipped.
+func escapePropertiesValues(values map[string]string) map[string]string {
+	escaped := make(map[string]string, len(values))
+	for key, value := range values {
+		value = strings.ReplaceAll(value, `\`, `\\`)
+		if strings.HasPrefix(value, " ") || strings.HasPrefix(value, "\t") {
+			value = `\` + value
+		}
+		escaped[key] = value
+	}
+	return escaped
 }

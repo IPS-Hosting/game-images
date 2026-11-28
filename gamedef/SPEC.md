@@ -194,13 +194,13 @@ Applied by `ips-init` inside the container before every start (`gamedef.ApplyCon
 
 | Format | Keys | Semantics |
 |---|---|---|
-| `properties` | `key` | `key=value` (also reads `key: value`) |
+| `properties` | `key` | `key=value` (also reads `key: value`); values are escaped for `java.util.Properties` (`\` → `\\`, leading whitespace), so the game reads exactly the rendered value |
 | `kv` | `key` | `key<delimiter>value`, `delimiter` (kv only) default `=` |
 | `ini` | `Section.key` (split at the last dot), `key` = global | missing sections are appended; section headers may carry a trailing `;`/`#` comment |
 | `json` | dot path, `\.` for a literal dot (`a.b\.c`) | value type from the plan's type hint (below); later duplicates of a managed key are removed |
 | `yaml` | as json | comments and order preserved, types as for json; documents whose managed path crosses an anchor, alias or merge key are refused; strings that YAML 1.1 reads as bool/null (`yes`, `on`, `~`, …) are quoted |
 | `lines` | line prefix | every line starting with the prefix is replaced by the value (the full line); the longest matching prefix wins; missing lines are appended. The rendered line must start with its prefix and must not start with a longer managed prefix. |
-| `xml` | element path from the root, `.`-separated: `A.B.C` (text) or `A.B@attr` (attribute); any step may carry one predicate `name[attr=value]`, e.g. `ServerSettings.property[name=ServerName]@value` | sets the text or attribute of the first element matching every step (a predicate step matches only elements whose attribute has exactly that value); missing elements (and the root of an empty file) are created, with the predicate attribute set. Predicate values may contain `.` and `@` but not `]`; an element with child elements cannot be set. Comments, processing instructions, whitespace (also before `/>`) and CRLF line endings are preserved, self-closing tags are kept. Values must be valid UTF-8 and XML 1.0 characters. |
+| `xml` | element path from the root, `.`-separated: `A.B.C` (text) or `A.B@attr` (attribute); any step may carry one predicate `name[attr=value]`, e.g. `ServerSettings.property[name=ServerName]@value` | sets the text or attribute of the first element matching every step (a predicate step matches only elements whose attribute has exactly that value); missing elements (and the root of an empty file) are created, with the predicate attribute set. Predicate values may contain `.` and `@` but not `]`; an element with child elements cannot be set. Comments, processing instructions, whitespace (also before `/>`) and CRLF line endings are preserved, self-closing tags are kept. A UTF-8 BOM is kept, whitespace between it and an XML declaration is removed. Values must be valid UTF-8 and XML 1.0 characters. |
 | `template` | – | full file render, overwrites (escape hatch) |
 
 For key/value formats every occurrence of a managed key gets the value, later duplicates are removed,

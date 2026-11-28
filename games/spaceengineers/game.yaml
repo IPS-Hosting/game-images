@@ -52,6 +52,11 @@ run:
       done
     }
     stop_server() {
+      if [ -z "$(game_pids)" ]; then
+        # The server process does not exist yet: signal the shell again once it does.
+        ( i=0; while [ -z "$(game_pids)" ] && [ "$i" -lt 3000 ]; do sleep 0.1; i=$((i + 1)); done; kill -INT $$ ) &
+        return
+      fi
       for pid in $(game_pids); do kill -INT "$pid" 2>/dev/null; done
       log=$(ls -t config/SpaceEngineersDedicated_*.log 2>/dev/null | head -n 1)
       i=0
@@ -63,9 +68,16 @@ run:
     trap stop_server INT TERM
     wine ./DedicatedServer64/SpaceEngineersDedicated.exe \
       -path 'Z:\home\container\config' -console -ignorelastsession &
-    i=0
-    while [ -z "$(game_pids)" ] && [ "$i" -lt 600 ]; do sleep 0.1; i=$((i + 1)); done
+    launcher=$!
+    status=0
+    while :; do
+      wait "$launcher"; status=$?
+      kill -0 "$launcher" 2>/dev/null || break # wait was interrupted by the trap
+    done
+    # wine returns when the server exits; wait for every server process anyway, so the container
+    # does not stop while one is still saving.
     while [ -n "$(game_pids)" ]; do sleep 1 & wait $!; done
+    exit "$status"
   console:
     via: none
   stop:
