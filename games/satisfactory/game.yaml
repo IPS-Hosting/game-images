@@ -1,0 +1,110 @@
+# Satisfactory — migration target for the existing platform game.
+# Legacy sources: ipsd game/satisfactory.go, satisfactory/entrypoint.sh. Ports and setting keys
+# follow the production game; the production port rows are verified before the switch (M4).
+# STATUS: boot-tested (2026-11-28, game2) with the own image ipshosting/game-satisfactory:v3
+apiVersion: 1
+
+short: satisfactory
+name: Satisfactory
+steamAppId: 526870
+tags: [building, co-op, crafting, open-world, simulation]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:satisfactory/egg-satisfactory.json
+    license: MIT
+
+run:
+  image: ipshosting/game-satisfactory:v3
+  dataPath: /home/ips-hosting
+  workingDir: Engine/Binaries/Linux
+  env:
+    UE_PROJECT_ROOT: /home/ips-hosting
+  exec:
+    - ./FactoryServer-Linux-Shipping
+    - FactoryGame
+    - '-Port={{ (.Port "game").Container }}'
+    - '-ReliablePort={{ (.Port "messaging").Container }}'
+    - -DisablePacketRouting
+  console:
+    via: none
+  stop:
+    via: signal
+    signal: SIGINT
+    timeoutSeconds: 30
+  ready:
+    pattern: 'Engine Initialization'
+
+install:
+  # steamSdk links linux64/steamclient.so to ~/.steam/sdk64, where SteamAPI_Init looks.
+  - kind: steamcmd
+    appId: 1690800
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+    steamSdk: true
+
+# Shortcuts in the data root, as created by the production post_update.
+hooks:
+  postInstall:
+    - symlink: { target: FactoryGame/Saved/Config/LinuxServer, link: Config }
+    - symlink: { target: FactoryGame/Saved/Logs, link: Logs }
+    - symlink: { target: .config/Epic/FactoryGame/Saved/SaveGames, link: SaveGames }
+
+# Satisfactory 1.0 dropped the separate A2S query port 15777 that production still queries: the boot
+# test (2026-11-27, game2) found nothing listening there. The 1.0 server state is only available over
+# the HTTPS API (POST /api/v1 on the api port) or the custom UDP protocol on the game port, which no
+# gamedef query protocol covers, so the query is "none".
+# TODO(M4): drop the query port row with the migration; query the HTTPS API once the engine can.
+query:
+  protocol: none
+
+ports:
+  - { identifier: game,      protocol: UDP, default: 7777,  group: 0 }
+  - { identifier: api,       protocol: TCP, default: 7777,  group: 0 }
+  - { identifier: messaging, protocol: TCP, default: 8888,  group: 1 }
+  - { identifier: query,     protocol: UDP, default: 15777, group: 2 }
+
+settings:
+  - key: maxPlayers
+    name: Maximale Spieler
+    description: Wird beim nächsten Start in Game.ini übernommen, sobald der Server die Datei angelegt hat.
+    type: NUMBER
+    default: '4'
+    validation: { integer: true, min: 1, max: 64 }
+  - key: betaBranch
+    name: Beta-Branch
+    description: Name der Beta Branch, auf der der Server laufen soll (z. B. experimental).
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: Beta-Passwort
+    type: HIDDENSTRING
+    category: steamBeta
+
+config:
+  - path: FactoryGame/Saved/Config/LinuxServer/Game.ini
+    format: ini
+    onlyIfExists: true
+    values:
+      /Script/Engine.GameSession.MaxPlayers: '{{ .Setting "maxPlayers" }}'
+
+protectedFiles:
+  - { path: /Engine/Binaries/Linux/FactoryServer-Linux-Shipping, readOnly: true }
+  - { path: /FactoryGame/Binaries/**, readOnly: true }
+
+# Server files from the steamcmd stage (re-downloaded on install); saves are in .config/Epic/.
+backupIgnore:
+  - /Engine/**
+  - /FactoryGame/Binaries/**
+  - /FactoryGame/Content/**
+  - /steamapps/**
+
+# The production game shows neither a map nor a Steam connect button.
+flags:
+  showMap: false
+  steamConnect: false
+
+requirements:
+  minCpuThreads: 2
+  minRam: 8192
+  minDiskspace: 15

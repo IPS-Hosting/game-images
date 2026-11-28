@@ -1,0 +1,155 @@
+# Soulmask — new game, derived from the Pelican egg (games-steamcmd soulmask).
+# STATUS: boot-tested (2026-11-28, game2)
+#
+# The admin console is the unauthenticated "echo" (telnet) port; it stays inside the container
+# (never published) and the start shell forwards the panel console to it.
+apiVersion: 1
+
+short: soulmask
+name: Soulmask
+steamAppId: 2646460
+tags: [survival, open-world, crafting, building, co-op]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:soulmask/egg-soulmask.yaml
+    license: MIT
+
+run:
+  image: ghcr.io/parkervcp/steamcmd:debian@sha256:c59cff8cd1202c8f283b8b36344166a9fc16e3f781aa1be7d10187cd9d7566d8
+  dataPath: /home/container
+  env:
+    GAME_PORT: '{{ (.Port "game").Container }}'
+    QUERY_PORT: '{{ (.Port "query").Container }}'
+    MAP: '{{ .Setting "map" }}'
+    NAME: '{{ .Setting "name" }}'
+    PASSWORD: '{{ .Setting "password" }}'
+    ADMIN_PASSWORD: '{{ .Setting "adminPassword" }}'
+    MAX_PLAYERS: '{{ .Setting "maxPlayers" }}'
+    SAVE_INTERVAL: '{{ .Setting "saveInterval" }}'
+    BACKUP_INTERVAL: '{{ .Setting "backupInterval" }}'
+    MODE: '{{ ternary "-pvp" "-pve" (.SettingBool "pvp") }}'
+  shell: |
+    ./WS/Binaries/Linux/WSServer-Linux-Shipping WS "$MAP" -server -SILENT -log -UTF8Output -forcepassthrough \
+      -MULTIHOME=0.0.0.0 -online=Steam -Port="$GAME_PORT" -QueryPort="$QUERY_PORT" -EchoPort=18888 \
+      -SteamServerName="$NAME" -MaxPlayers="$MAX_PLAYERS" -PSW="$PASSWORD" -adminpsw="$ADMIN_PASSWORD" \
+      -saving="$SAVE_INTERVAL" -backup="$BACKUP_INTERVAL" "$MODE" &
+    server=$!
+    trap 'kill -INT "$server" 2>/dev/null' TERM INT
+    exec 3<&0
+    until nc -z 127.0.0.1 18888 2>/dev/null; do
+      kill -0 "$server" 2>/dev/null || break
+      sleep 2
+    done
+    nc 127.0.0.1 18888 <&3 >/dev/null 2>&1 &
+    status=0
+    wait "$server" || status=$?
+    while kill -0 "$server" 2>/dev/null; do wait "$server" || status=$?; done
+    exit "$status"
+  console:
+    via: stdin
+  stop:
+    via: signal
+    signal: SIGINT
+    timeoutSeconds: 60
+  ready:
+    pattern: 'Create Dungeon Successed'
+
+install:
+  - kind: steamcmd
+    appId: 3017300
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # Steamworks SDK redistributable (the egg installs it as well): linux64/steamclient.so.
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
+    steamSdk: true
+
+hooks:
+  postInstall:
+    - ensureDir: { path: WS/Saved/Config/LinuxServer }
+
+query:
+  protocol: a2s
+  port: query
+
+ports:
+  - { identifier: game,  protocol: UDP, default: 8777,  group: 0 }
+  - { identifier: query, protocol: UDP, default: 27015, group: 1 }
+
+settings:
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Mein Soulmask Server
+    validation: { required: true, minLength: 3, maxLength: 64 }
+  - key: password
+    name: { de: Server-Passwort, en: Server password }
+    description: { de: Leer lassen für einen öffentlichen Server., en: Leave empty for a public server. }
+    type: HIDDENSTRING
+    validation: { maxLength: 32, pattern: '[^ ]*' }
+  - key: adminPassword
+    name: { de: Admin-Passwort, en: Admin password }
+    description: { de: Für die GM-Befehle im Spiel., en: For the GM commands in game. }
+    type: HIDDENSTRING
+    category: admin
+    generate: { length: 16 }
+    validation: { maxLength: 32, pattern: '[^ ]*' }
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '20'
+    validation: { integer: true, min: 1, max: 70 }
+  - key: map
+    name: { de: Karte, en: Map }
+    type: STRINGENUM
+    default: Level01_Main
+    category: world
+    values:
+      - { value: Level01_Main, label: { de: Hauptkarte, en: Main map } }
+      - { value: DLC_Level01_Main, label: { de: Shifting Sands (DLC), en: Shifting Sands (DLC) } }
+  - key: pvp
+    name: PvP
+    type: BOOLEAN
+    default: '0'
+    category: gameplay
+  - key: saveInterval
+    name: { de: Speicherintervall (Sekunden), en: Save interval (seconds) }
+    type: NUMBER
+    default: '600'
+    category: world
+    validation: { integer: true, min: 60, max: 3600 }
+  - key: backupInterval
+    name: { de: Backup-Intervall (Sekunden), en: Backup interval (seconds) }
+    type: NUMBER
+    default: '900'
+    category: world
+    validation: { integer: true, min: 300, max: 86400 }
+  - key: betaBranch
+    name: Beta-Branch
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: { de: Beta-Passwort, en: Beta password }
+    type: HIDDENSTRING
+    category: steamBeta
+
+protectedFiles:
+  - { path: /WS/Binaries/**, readOnly: true }
+  - { path: /WS/Content/**, readOnly: true }
+  - { path: /Engine/**, readOnly: true }
+  - { path: /steamworks/**, readOnly: true }
+
+backupIgnore:
+  - WS/Binaries/**
+  - WS/Content/**
+  - Engine/**
+  - steamapps/**
+  - steamworks/**
+  - WS/Saved/Logs/**
+
+requirements:
+  minCpuThreads: 2
+  minRam: 8192
+  minDiskspace: 20

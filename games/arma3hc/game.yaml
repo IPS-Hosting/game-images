@@ -1,0 +1,140 @@
+# ARMA 3 headless client — runs the NPC simulation for an ARMA 3 server; migration target for the existing platform game.
+# Legacy sources: ipsd game/arma3_client.go + game/base_arma3.go, arma3/entrypoint.sh in MODE=client,
+# api seeds. Setting keys and defaults match the production game.
+# STATUS: validated (boot-test risks: needs a paired arma3 server, host Steam login)
+#
+# A headless client connects to a separate ARMA 3 server and takes over the NPC simulation; it opens
+# no ports of its own. The server files (app 233780) need a Steam account that owns ARMA 3 (host
+# login), so no script stages.
+apiVersion: 1
+
+short: arma3hc
+name: { de: ARMA 3 Headless Client, en: ARMA 3 headless client }
+steamAppId: 107410
+tags: [fps, tactical, simulation, multiplayer, moddable]
+
+sources:
+  - kind: manual
+
+run:
+  image: ipshosting/game-arma3:v3
+  dataPath: /home/ips-hosting
+  env:
+    USE_X64: '{{ .SettingBool "useX64" | boolInt }}'
+    PROFILE: '{{ .Setting "profileName" }}'
+    GAME_SERVER_IP: '{{ .Setting "gameServerIp" }}'
+    GAME_SERVER_PORT: '{{ .Setting "gameServerPort" }}'
+    GAME_SERVER_PASSWORD: '{{ .Setting "gameServerPassword" }}'
+    LIMIT_FPS: '{{ .Setting "limitFPS" }}'
+    # Same mapping as production (see games/arma3).
+    MODS: >-
+      {{ range $i, $m := .SettingList "mods" }}{{ if $i }};{{ end }}{{ if or (eq $m "ws") (eq $m "csla") (eq $m "vn") (eq $m "gm") (eq $m "spe") (eq $m "rf") (eq $m "ef") }}{{ $m }}{{ else }}mods/{{ $m | replace " " "_" | lower }}{{ end }}{{ end }}
+  # Production never extracts keys for the headless client (EXTRACT_MOD_KEYS=false).
+  shell: |
+    mkdir -p mods
+    find -L mods -depth -exec rename -f 's/(.*)\/([^\/]*)/$1\/\L$2/' {} +
+    find mods -mindepth 1 -maxdepth 1 -type d -exec rename -f 's/\s/_/g' {} +
+    BIN=./arma3server
+    if [ "$USE_X64" = "1" ]; then BIN=./arma3server_x64; fi
+    exec "$BIN" -client -connect="$GAME_SERVER_IP" -port="$GAME_SERVER_PORT" \
+      -password="$GAME_SERVER_PASSWORD" -name="$PROFILE" -mod="$MODS" -limitFPS="$LIMIT_FPS"
+  console:
+    via: none
+  stop:
+    via: signal
+    signal: SIGINT
+    timeoutSeconds: 15
+  # No ready pattern: the client only gets ready once the configured server accepts it, which a boot
+  # test cannot provide. TODO(M3): boot test with a paired arma3 server.
+
+install:
+  - kind: steamcmd
+    appId: 233780
+    login: host
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # Steamworks SDK redistributable: steamclient.so for ~/.steam/sdk64 and sdk32 (see games/arma3).
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
+    steamSdk: true
+
+# TODO(M4): same workshop caveats as games/arma3 (production layout Steam/steamapps/workshop/content/107410
+# with symlinks mods/<id>, non-numeric entries must be skipped).
+workshop:
+  settings: [mods]
+  appId: 107410
+  login: host
+  dir: mods
+
+settings:
+  - key: gameServerIp
+    name: { de: Gameserver-IP, en: Game server IP }
+    description: Die IP Adresse des ARMA Servers, auf den dieser Headless Client verbinden soll.
+    type: STRING
+    validation: { pattern: '^[0-9A-Za-z.:-]*$', maxLength: 255 }
+  - key: gameServerPort
+    name: { de: Gameserver-Port, en: Game server port }
+    description: Der Game Port des ARMA Servers, auf den dieser Headless Client verbinden soll.
+    type: NUMBER
+    default: '2302'
+    validation: { integer: true, min: 1, max: 65535 }
+  # Production type is STRING; HIDDENSTRING keeps the value out of the panel (values are unchanged).
+  - key: gameServerPassword
+    name: { de: Gameserver-Passwort, en: Game server password }
+    description: Das Passwort des ARMA Servers, auf den dieser Headless Client verbinden soll.
+    type: HIDDENSTRING
+    validation: { maxLength: 255 }
+  - key: profileName
+    name: { de: Profilname, en: Profile name }
+    description: Der Name des Profils, das vom Headless Client geladen wird.
+    type: STRING
+    default: server
+    validation: { required: true, minLength: 1, maxLength: 255 }
+  - key: mods
+    name: Mods
+    description: Die Mods, welche vom Client geladen werden sollen. Eigene Mods liegen im Ordner /mods, hier wird der Name des Mod-Ordners (z. B. @ace) eingetragen. Zahlen werden als Steam-Workshop-IDs interpretiert und automatisch heruntergeladen und aktuell gehalten.
+    type: STRINGLIST
+    category: mods
+  - key: limitFPS
+    name: { de: FPS limitieren, en: FPS limit }
+    description: Limitiert die FPS des Headless Clients. Muss zwischen 5 und 1000 FPS liegen.
+    type: NUMBER
+    default: '50'
+    category: performance
+    validation: { required: true, integer: true, min: 5, max: 1000 }
+  - key: useX64
+    name: { de: 64-Bit-Version nutzen, en: Use 64-bit client }
+    description: Wenn aktiviert, wird die 64 Bit Version genutzt, welche in Version 2.0 hinzugefügt wurde.
+    type: BOOLEAN
+    default: '1'
+  - key: betaBranch
+    name: Beta-Branch
+    description: Name der Beta Branch (Liste unter https://steamdb.info/app/233780/depots/). Muss zur Branch des ARMA Servers passen.
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: Beta-Passwort
+    description: Manche Beta Branches sind durch ein Passwort geschützt, welches hier angegeben werden kann.
+    type: HIDDENSTRING
+    category: steamBeta
+
+preconditions:
+  - check: { setting: gameServerIp, notEquals: '' }
+    severity: error
+    message: Bitte trage die IP Adresse des ARMA Servers ein, mit dem sich der Headless Client verbinden soll.
+
+protectedFiles:
+  - { path: /arma3server, readOnly: true }
+  - { path: /arma3server_x64, readOnly: true }
+
+backupIgnore:
+  - /addons/**
+  - /Steam/steamapps/workshop/**
+  - /steamworks/**
+
+# No query and no own ports: the platform shows neither players nor a map.
+requirements:
+  minCpuThreads: 1
+  minRam: 2048
+  minDiskspace: 20

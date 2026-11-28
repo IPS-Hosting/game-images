@@ -1,0 +1,254 @@
+# Garry's Mod — migration target for the existing platform game.
+# Legacy sources: ipsd game/gmod.go (env, stop command, query, backup ignore list), gmod/entrypoint.sh
+# and gmod/mount.cfg (start command, install, CSS content) and the api seeds (settings, ports, files).
+# Setting keys, defaults, ports and the data layout match production, so existing servers keep
+# their values, addons and saves.
+# STATUS: boot-tested (2026-11-27, game2, with an installer stand-in); production needs the M3 installer
+# image (script stage for the Steam client libraries and the CSS content)
+#
+# The production game does not manage server.cfg (hostname, passwords and rcon_password stay in
+# garrysmod/cfg/server.cfg, owned by the customer), so this definition does not either.
+apiVersion: 1
+
+short: gmod
+name: Garry's Mod
+steamAppId: 4000
+tags: [sandbox, multiplayer, moddable, roleplay]
+
+sources:
+  - kind: manual
+
+run:
+  # The production image provides the 32-bit runtime libraries srcds needs. Its entrypoint is
+  # not used: it runs steamcmd on every start without a command.
+  image: ipshosting/game-gmod:v3
+  dataPath: /home/ips-hosting
+  # Argument order and flags as in entrypoint.sh start(). Unlike the production eval, every
+  # value is exactly one argument, and empty optional values drop their flag.
+  exec:
+    - '{{ if .SettingBool "useX64" }}./srcds_run_x64{{ else }}./srcds_run{{ end }}'
+    - -game
+    - garrysmod
+    - -ip
+    - 0.0.0.0
+    - -port
+    - '{{ (.Port "game").Container }}'
+    - -clientport
+    - '{{ (.Port "client").Container }}'
+    - -strictportbind
+    - +maxplayers
+    - '{{ .Setting "slots" }}'
+    - -tickrate
+    - '{{ .Setting "tickrate" }}'
+    - +map
+    - '{{ .Setting "map" }}'
+    - +gamemode
+    - '{{ .Setting "gamemode" }}'
+    # srcds downloads and mounts the collection itself; no engine workshop download is needed.
+    - arg: +host_workshop_collection
+      value: '{{ .Setting "host_workshop_collection" }}'
+    - arg: +sv_setsteamaccount
+      value: '{{ .Setting "gslt" }}'
+    - -nohltv
+    - -norestart
+    - arg: -insecure
+      when: { setting: insecure, truthy: true }
+    - arg: -nobots
+      when: { setting: nobots, truthy: true }
+    - arg: -noworkshop
+      when: { setting: noworkshop, truthy: true }
+    - arg: -noaddons
+      when: { setting: noaddons, truthy: true }
+    - arg: -disableluarefresh
+      when: { setting: disableluarefresh, truthy: true }
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: quit
+    timeoutSeconds: 10
+  ready:
+    pattern: 'Connection to Steam servers successful'
+
+install:
+  - kind: steamcmd
+    appId: 4020
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # Same steps as post_update(), download_content() and mount_content() of the production image.
+  # - The Steam client libraries are copied from steamcmd once (the server's own linux32
+  #   directory does not ship them).
+  # - Counter-Strike: Source content (app 232330) is mounted because many maps use its props.
+  #   Only the .vpk archives are kept in .ips-hosting/content/cstrike. Production downloads
+  #   them again on every install/validate; here they are downloaded only when missing.
+  # - mount.cfg is written when it is missing. Production overwrote it on every install/validate.
+  - kind: script
+    shell: |
+      set -eu
+      cd "$IPS_DATA_PATH"
+
+      for bits in 32 64; do
+        if [ ! -f ".steam/sdk$bits/steamclient.so" ]; then
+          mkdir -p ".steam/sdk$bits"
+          cp "$STEAMCMD_DIR/linux$bits/steamclient.so" ".steam/sdk$bits/steamclient.so"
+        fi
+      done
+
+      content=.ips-hosting/content
+      if [ ! -d "$content/cstrike" ]; then
+        rm -rf "$content/raw" "$content/cstrike.tmp"
+        mkdir -p "$content/raw" "$content/cstrike.tmp"
+        steamcmd +force_install_dir "$IPS_DATA_PATH/$content/raw" +login anonymous +app_update 232330 validate +quit
+        (cd "$content/raw/cstrike" && find . -type f -name '*.vpk*') | while IFS= read -r file; do
+          mkdir -p "$content/cstrike.tmp/$(dirname "$file")"
+          mv "$content/raw/cstrike/$file" "$content/cstrike.tmp/$file"
+        done
+        mv "$content/cstrike.tmp" "$content/cstrike"
+        rm -rf "$content/raw"
+      fi
+
+      if [ ! -f garrysmod/cfg/mount.cfg ]; then
+        mkdir -p garrysmod/cfg
+        cat > garrysmod/cfg/mount.cfg <<'EOF'
+      "mountcfg"
+      {
+          "cstrike" "/home/ips-hosting/.ips-hosting/content/cstrike"
+      }
+      EOF
+      fi
+
+query:
+  protocol: a2s
+  port: game
+
+ports:
+  - { identifier: game,   protocol: UDP, default: 27015, group: 0 }
+  - { identifier: rcon,   protocol: TCP, default: 27015, group: 0 }
+  - { identifier: client, protocol: TCP, default: 27005, group: 1 }
+
+settings:
+  - key: slots
+    name: Slots
+    description: Die Slots bestimmen, wie viele Spieler gleichzeitig auf dem Server spielen können.
+    type: NUMBER
+    default: '20'
+    validation: { required: true, integer: true, min: 1, max: 128 }
+  - key: tickrate
+    name: Tickrate
+    description: Die Tickrate bestimmt, wie oft der Server pro Sekunde Daten berechnet. Ein höherer Wert sorgt für ein flüssigeres Spielerlebnis, braucht aber auch mehr Leistung.
+    type: NUMBERENUM
+    default: '66'
+    values:
+      - { value: '8' }
+      - { value: '16' }
+      - { value: '33' }
+      - { value: '66' }
+      - { value: '128' }
+  - key: gslt
+    name: Game Server Login Token
+    description: Ein Game Server Login Token identifiziert einen Server. Dadurch bleibt der Server auch nach einem IP-Wechsel in den Favoriten der Spieler. Er kann unter https://steamcommunity.com/dev/managegameservers (App-ID 4000) erstellt werden.
+    type: HIDDENSTRING
+    validation: { pattern: '[A-Za-z0-9]{32}' }
+  - key: gamemode
+    name: Spielmodus
+    description: Der Spielmodus, der beim Serverstart geladen wird (z. B. sandbox, terrortown, darkrp).
+    type: STRING
+    default: sandbox
+    category: gameplay
+    validation: { required: true, minLength: 1, maxLength: 255 }
+  - key: map
+    name: Startkarte
+    description: Wenn der Server startet, lädt er diese Karte (z. B. gm_construct, gm_flatgrass).
+    type: STRING
+    default: gm_construct
+    category: gameplay
+    validation: { required: true, minLength: 1, maxLength: 255 }
+  - key: host_workshop_collection
+    name: Steam-Kollektion
+    description: Die ID der Steam-Workshop-Kollektion, die der Server herunterlädt und lädt.
+    type: NUMBER
+    category: mods
+    validation: { integer: true, min: 1 }
+  - key: noworkshop
+    name: Workshop deaktivieren
+    description: Deaktiviert das Workshop-Addon-System. Es werden keine Addons mehr aus dem Workshop geladen.
+    type: BOOLEAN
+    default: '0'
+    category: mods
+  - key: noaddons
+    name: Addons deaktivieren
+    description: Deaktiviert das Addon-System. Es werden keine Addons mehr aus dem Dateisystem geladen.
+    type: BOOLEAN
+    default: '0'
+    category: mods
+  - key: insecure
+    name: Valve Anti-Cheat deaktivieren
+    description: Deaktiviert den Valve Anti-Cheat.
+    type: BOOLEAN
+    default: '0'
+    category: advanced
+  - key: disableluarefresh
+    name: Lua-Refresh deaktivieren
+    description: Deaktiviert den Lua Auto Refresh. Geänderte Dateien werden erst nach einem Kartenwechsel geladen. Empfohlen für alle Server außer Entwicklungsserver.
+    type: BOOLEAN
+    default: '1'
+    category: advanced
+  - key: nobots
+    name: Bots deaktivieren
+    description: Deaktiviert die Möglichkeit, Bots zu spawnen.
+    type: BOOLEAN
+    default: '0'
+    category: advanced
+  - key: useX64
+    name: 64-Bit-Version nutzen
+    description: Startet die 64-Bit-Version des Servers (srcds_run_x64). Sie ist nicht in allen Branches vorhanden, z. B. in der Branch x86-64.
+    type: BOOLEAN
+    # TODO(M4): the production default is 'false' and stored values may be 'true'/'false';
+    # the migration maps them to '1'/'0'.
+    default: '0'
+    category: advanced
+  - key: betaBranch
+    name: Beta-Branch
+    description: Falls der Server auf einer Beta Branch laufen soll, trage hier ihren Namen ein (Liste unter https://steamdb.info/app/4020/depots/). Beim Wechsel können Server-Dateien überschrieben werden, und eventuell können nur Spieler derselben Branch beitreten.
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: Beta-Passwort
+    description: Manche Beta Branches sind durch ein Passwort geschützt, welches hier angegeben werden kann.
+    type: HIDDENSTRING
+    category: steamBeta
+
+preconditions:
+  - check: { setting: gslt, notEquals: '' }
+    severity: warning
+    message: Ohne Game Server Login Token wird der Server in der Serverliste weit unten angezeigt und verschwindet nach einem IP-Wechsel aus den Favoriten der Spieler.
+
+protectedFiles:
+  - { path: /srcds_run, readOnly: true }
+  - { path: /srcds_linux, readOnly: true }
+  - { path: /srcds_run_x64, readOnly: true }
+  - { path: /srcds_linux64, readOnly: true }
+
+# From ipsd game/gmod.go BackupIgnoreList: binaries and downloadable content.
+backupIgnore:
+  - /.ips-hosting/content
+  - /.steam
+  - /bin
+  - /linux64
+  - /platform
+  - /sourceengine
+  - /Steam
+  - /steamapps
+  - /steam_cache
+  - /steamclient.so
+  - /garrysmod/bin
+  - /garrysmod/cache
+  - /garrysmod/*.vpk
+  - /garrysmod/maps/gm_construct.*
+  - /garrysmod/maps/gm_flatgrass.*
+  - /srcds*
+
+requirements:
+  minCpuThreads: 1
+  minRam: 2048
+  minDiskspace: 15

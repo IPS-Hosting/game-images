@@ -1,0 +1,126 @@
+# V Rising — Windows server under Wine; migration target for the existing platform game.
+# Legacy sources: ipsd game/vrising.go, vrising/entrypoint.sh. Setting keys and paths (saves in
+# data/) match the production game.
+# STATUS: partly boot-tested (2026-11-27, game2): install and ready ok, the A2S query was not
+# answered (see query); production needs the Wine runtime (M3)
+#
+# Own image with wine + xvfb; WINEPREFIX stays at the production default ~/.wine inside the data
+# directory.
+apiVersion: 1
+
+short: vrising
+name: V Rising
+steamAppId: 1604030
+tags: [survival, open-world, co-op, pvp, crafting, building]
+
+sources:
+  - kind: manual
+
+run:
+  image: ipshosting/game-vrising:v2
+  dataPath: /home/ips-hosting
+  env:
+    WINEPREFIX: /home/ips-hosting/.wine
+    WINEDEBUG: -all
+  # Empty settings are left out, so ServerHostSettings.json keeps the value (production behaviour).
+  exec:
+    - xvfb-run
+    - -a
+    - wine
+    - VRisingServer.exe
+    - -persistentDataPath
+    - ./data
+    - -address
+    - 0.0.0.0
+    - -gamePort
+    - '{{ (.Port "game").Container }}'
+    - -queryPort
+    - '{{ (.Port "query").Container }}'
+    - arg: -saveName
+      value: '{{ .Setting "saveName" }}'
+    - arg: -serverName
+      value: '{{ .Setting "serverName" }}'
+    - arg: -maxConnectedUsers
+      value: '{{ .Setting "maxConnectedUsers" }}'
+    - arg: -maxConnectedAdmins
+      value: '{{ .Setting "maxConnectedAdmins" }}'
+  # TODO(M3): no console in production; RCON (ServerHostSettings.json Rcon) would allow a save before stop.
+  console:
+    via: none
+  stop:
+    via: signal
+    signal: SIGINT
+    timeoutSeconds: 30
+  ready:
+    pattern: 'Startup Completed'
+  # xvfb-run and Wine need a writable /tmp (root filesystem is read-only).
+  tmpfs: [/tmp]
+
+install:
+  - kind: steamcmd
+    appId: 1829350
+    platform: windows
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+
+query:
+  # TODO(M4): the boot test got no A2S answer on the query port (default ServerHostSettings.json).
+  # Compare with a production server before the migration; without an answer the panel shows no
+  # players or map.
+  protocol: a2s
+  port: query
+
+# TODO(M4): verify groups against the production port rows (not in the api seeds).
+ports:
+  - { identifier: game,  protocol: UDP, default: 27015, group: 0 }
+  - { identifier: query, protocol: UDP, default: 27016, group: 0 }
+
+settings:
+  - key: serverName
+    name: Servername
+    description: Leer lassen, um den Wert aus ServerHostSettings.json zu verwenden.
+    type: STRING
+    validation: { maxLength: 128 }
+  - key: saveName
+    name: { de: Spielstand, en: Save name }
+    description: Name des Spielstands (Ordner unter data/Saves). Leer lassen, um den Wert aus ServerHostSettings.json zu verwenden.
+    type: STRING
+    category: world
+    validation: { pattern: '^[^/\\]*$', maxLength: 64 }
+  - key: maxConnectedUsers
+    name: { de: Maximale Spieler, en: Max players }
+    description: Leer lassen, um den Wert aus ServerHostSettings.json zu verwenden.
+    type: NUMBER
+    validation: { integer: true, min: 1, max: 128 }
+  - key: maxConnectedAdmins
+    name: { de: Zusätzliche Admin-Plätze, en: Admin slots }
+    description: Admins, die auch bei vollem Server beitreten dürfen. Leer lassen, um den Wert aus ServerHostSettings.json zu verwenden.
+    type: NUMBER
+    category: admin
+    validation: { integer: true, min: 0, max: 32 }
+  - key: betaBranch
+    name: Beta-Branch
+    description: Name der Beta Branch, auf der der Server laufen soll. Beim Wechsel können Server-Dateien überschrieben werden.
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: Beta-Passwort
+    description: Manche Beta Branches sind durch ein Passwort geschützt, welches hier angegeben werden kann.
+    type: HIDDENSTRING
+    category: steamBeta
+
+# Re-created on install or by Wine; saves and settings are in data/.
+backupIgnore:
+  - /.wine/**
+  - /steamapps/**
+  - /GameAssembly.dll
+  - /UnityPlayer.dll
+
+protectedFiles:
+  - { path: /VRisingServer.exe, readOnly: true }
+  - { path: /VRisingServer_Data/Managed/**, readOnly: true }
+
+requirements:
+  minCpuThreads: 2
+  minRam: 4096
+  minDiskspace: 8

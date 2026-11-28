@@ -1,0 +1,238 @@
+# Don't Starve Together — new game, derived from the Pelican egg (games-steamcmd dont_starve).
+# STATUS: partly boot-tested (2026-11-27, game2): install and start ok; ready needs a real Klei cluster
+# token
+#
+# One cluster with the Master shard and an optional Caves shard, both in this container (the egg
+# uses a bash coproc; here a FIFO on /tmp feeds the Caves console). The panel console talks to the
+# Master shard; on stop, Master shuts down first and then Caves.
+# Customers need a cluster token from their Klei account.
+apiVersion: 1
+
+short: dst
+name: Don't Starve Together
+steamAppId: 322330
+tags: [survival, co-op, crafting, sandbox, moddable]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:dont_starve/egg-don-t-starve-together.json
+    license: MIT
+
+run:
+  image: ghcr.io/parkervcp/steamcmd:debian@sha256:c59cff8cd1202c8f283b8b36344166a9fc16e3f781aa1be7d10187cd9d7566d8
+  dataPath: /home/container
+  workingDir: bin64
+  tmpfs: [/tmp]
+  env:
+    CAVES: '{{ .SettingBool "caves" | boolInt }}'
+  shell: |
+    set -- -persistent_storage_root "$HOME/DoNotStarveTogether" -conf_dir config -cluster server
+    caves=
+    if [ "$CAVES" = "1" ]; then
+      fifo=/tmp/dst-caves.stdin
+      rm -f "$fifo"
+      mkfifo "$fifo"
+      ./dontstarve_dedicated_server_nullrenderer_x64 "$@" -shard Caves <"$fifo" &
+      caves=$!
+      exec 4>"$fifo"
+    fi
+    exec 3<&0
+    ./dontstarve_dedicated_server_nullrenderer_x64 "$@" -shard Master <&3 &
+    master=$!
+    trap 'kill -TERM "$master" $caves 2>/dev/null' TERM INT
+    status=0
+    wait "$master" || status=$?
+    while kill -0 "$master" 2>/dev/null; do wait "$master" || status=$?; done
+    if [ -n "$caves" ]; then
+      echo 'c_shutdown()' >&4 2>/dev/null
+      wait "$caves" || true
+      while kill -0 "$caves" 2>/dev/null; do wait "$caves" || true; done
+    fi
+    exit "$status"
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: c_shutdown()
+    timeoutSeconds: 60
+  ready:
+    pattern: 'Sim paused|Server registered via geo DNS'
+
+install:
+  - kind: steamcmd
+    appId: 343050
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # Steamworks SDK redistributable: provides linux64/steamclient.so for ~/.steam/sdk64.
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
+    steamSdk: true
+
+hooks:
+  postInstall:
+    - ensureDir: { path: DoNotStarveTogether/config/server/Master }
+    - ensureDir: { path: DoNotStarveTogether/config/server/Caves }
+    - writeFile:
+        path: .ips/caves-worldgenoverride.lua
+        content: |
+          return {
+            override_enabled = true,
+            preset = "DST_CAVE",
+          }
+  preStart:
+    - ensureDir: { path: DoNotStarveTogether/config/server }
+    - writeFile:
+        path: DoNotStarveTogether/config/server/cluster_token.txt
+        content: '{{ .Setting "clusterToken" | trim }}'
+        mode: '0600'
+    # Without this file the Caves shard would generate a second surface world.
+    - when: { setting: caves, truthy: true }
+      copyIfMissing:
+        from: .ips/caves-worldgenoverride.lua
+        to: DoNotStarveTogether/config/server/Caves/worldgenoverride.lua
+
+ports:
+  - { identifier: game,  protocol: UDP, default: 10999, group: 0 }
+  - { identifier: caves, protocol: UDP, default: 10998, group: 0 }
+
+settings:
+  - key: clusterToken
+    name: { de: Cluster-Token, en: Cluster token }
+    description:
+      de: 'Pflicht. Im Spiel unter Account > Spiele > Don''t Starve Together > Spielserver erstellen oder unter https://accounts.klei.com/account/game/servers?game=DontStarveTogether.'
+      en: 'Required. Create it in game under Account > Games > Don''t Starve Together > Game Servers or at https://accounts.klei.com/account/game/servers?game=DontStarveTogether.'
+    type: HIDDENSTRING
+    validation: { maxLength: 256, pattern: '[A-Za-z0-9^+/=_-]+' }
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Mein Don't Starve Together Server
+    validation: { required: true, minLength: 3, maxLength: 64 }
+  - key: description
+    name: { de: Beschreibung, en: Description }
+    type: STRING
+    default: Ein Server von ips-hosting.com
+    validation: { maxLength: 200 }
+  - key: password
+    name: { de: Server-Passwort, en: Server password }
+    description: { de: Leer lassen für einen öffentlichen Server., en: Leave empty for a public server. }
+    type: HIDDENSTRING
+    validation: { maxLength: 64 }
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '6'
+    validation: { integer: true, min: 1, max: 64 }
+  - key: caves
+    name: { de: Höhlen, en: Caves }
+    description: { de: Startet zusätzlich die Höhlenwelt (braucht mehr Arbeitsspeicher)., en: Also runs the caves world (needs more memory). }
+    type: BOOLEAN
+    default: '1'
+    category: world
+  - key: gameMode
+    name: { de: Spielmodus, en: Game mode }
+    type: STRINGENUM
+    default: survival
+    category: gameplay
+    values:
+      - { value: survival, label: { de: Überleben, en: Survival } }
+      - { value: endless, label: { de: Endlos, en: Endless } }
+      - { value: wilderness, label: { de: Wildnis, en: Wilderness } }
+  - key: intention
+    name: { de: Spielstil, en: Server playstyle }
+    type: STRINGENUM
+    default: cooperative
+    category: gameplay
+    values:
+      - { value: cooperative, label: { de: Kooperativ, en: Cooperative } }
+      - { value: social, label: { de: Gesellig, en: Social } }
+      - { value: competitive, label: { de: Wettkampf, en: Competitive } }
+      - { value: madness, label: { de: Wahnsinn, en: Madness } }
+  - key: pvp
+    name: PvP
+    type: BOOLEAN
+    default: '0'
+    category: gameplay
+  - key: pauseWhenEmpty
+    name: { de: Pause ohne Spieler, en: Pause when empty }
+    type: BOOLEAN
+    default: '1'
+    category: gameplay
+  - key: clusterKey
+    name: { de: Shard-Schlüssel, en: Shard key }
+    description: { de: Interner Schlüssel zwischen Master und Höhlen., en: Internal key between master and caves. }
+    type: HIDDENSTRING
+    category: advanced
+    generate: { length: 24 }
+    userEditable: false
+  - key: betaBranch
+    name: Beta-Branch
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: { de: Beta-Passwort, en: Beta password }
+    type: HIDDENSTRING
+    category: steamBeta
+
+config:
+  - path: DoNotStarveTogether/config/server/cluster.ini
+    format: ini
+    values:
+      GAMEPLAY.game_mode: '{{ .Setting "gameMode" }}'
+      GAMEPLAY.max_players: '{{ .Setting "maxPlayers" }}'
+      GAMEPLAY.pvp: '{{ ternary "true" "false" (.SettingBool "pvp") }}'
+      GAMEPLAY.pause_when_empty: '{{ ternary "true" "false" (.SettingBool "pauseWhenEmpty") }}'
+      NETWORK.cluster_name: '{{ .Setting "name" }}'
+      NETWORK.cluster_description: '{{ .Setting "description" }}'
+      NETWORK.cluster_password: '{{ .Setting "password" }}'
+      NETWORK.cluster_intention: '{{ .Setting "intention" }}'
+      MISC.console_enabled: 'true'
+      SHARD.shard_enabled: '{{ ternary "true" "false" (.SettingBool "caves") }}'
+      SHARD.bind_ip: 127.0.0.1
+      SHARD.master_ip: 127.0.0.1
+      SHARD.master_port: '10888'
+      SHARD.cluster_key: '{{ .Setting "clusterKey" }}'
+  - path: DoNotStarveTogether/config/server/Master/server.ini
+    format: ini
+    values:
+      NETWORK.server_port: '{{ (.Port "game").Container }}'
+      SHARD.is_master: 'true'
+      SHARD.name: Master
+      STEAM.master_server_port: '27016'
+      STEAM.authentication_port: '8766'
+      ACCOUNT.encode_user_path: 'true'
+  - path: DoNotStarveTogether/config/server/Caves/server.ini
+    format: ini
+    when: { setting: caves, truthy: true }
+    values:
+      NETWORK.server_port: '{{ (.Port "caves").Container }}'
+      SHARD.is_master: 'false'
+      SHARD.name: Caves
+      STEAM.master_server_port: '27017'
+      STEAM.authentication_port: '8767'
+      ACCOUNT.encode_user_path: 'true'
+
+preconditions:
+  - check: { setting: clusterToken, matches: '\S' }
+    severity: error
+    message: Ohne Cluster-Token von Klei startet der Server nicht. Bitte den Token in den Einstellungen hinterlegen.
+
+protectedFiles:
+  - { path: /DoNotStarveTogether/config/server/cluster_token.txt, hidden: true }
+  - { path: /.ips/**, readOnly: true }
+  - { path: /bin64/**, readOnly: true }
+  - { path: /data/**, readOnly: true }
+  - { path: /steamworks/**, readOnly: true }
+
+backupIgnore:
+  - bin/**
+  - bin64/**
+  - data/**
+  - steamapps/**
+  - steamworks/**
+
+requirements:
+  minCpuThreads: 2
+  minRam: 2048
+  minDiskspace: 5

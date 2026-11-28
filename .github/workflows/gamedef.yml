@@ -1,0 +1,42 @@
+name: "Game definitions"
+
+on:
+  pull_request:
+    paths:
+      - "games/**"
+      - "gamedef/**"
+      - ".github/workflows/gamedef.yml"
+
+concurrency:
+  group: gamedef-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Test and validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: gamedef
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: gamedef/go.mod
+          cache-dependency-path: gamedef/go.sum
+
+      - name: Test
+        run: go test ./...
+
+      - name: Validate catalog
+        run: go run ./cmd/gamedef validate -root ..
+
+      - name: Check pinned images
+        run: go run ./cmd/gamedef images -check -root ..

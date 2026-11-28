@@ -1,0 +1,240 @@
+# ARK: Survival Evolved — migration target for the existing platform game.
+# Legacy sources: ipsd game/ark.go (env, RCON console, query, backup ignore list), ark/entrypoint.sh
+# (start command, install, symlinks) and the api seeds (settings, ports, files). Setting keys,
+# defaults, ports and the data layout match production.
+# STATUS: boot-tested (2026-11-28, game2), with an installer stand-in; production needs the M3 installer image
+# (script stage for the Steam client libraries and the steamcmd copy that -automanagedmods uses)
+apiVersion: 1
+
+short: ark
+name: 'ARK: Survival Evolved'
+steamAppId: 346110
+tags: [survival, open-world, crafting, building, multiplayer, moddable]
+
+sources:
+  - kind: manual
+
+run:
+  # Production image (lib32gcc for the bundled steamcmd). Its entrypoint is not used: it runs
+  # steamcmd on every start without a command.
+  image: ipshosting/game-ark:v3
+  dataPath: /home/ips-hosting
+  workingDir: ShooterGame/Binaries/Linux
+  # -automanagedmods runs steamcmd inside the game container; it needs a writable /tmp.
+  tmpfs: [/tmp]
+  env:
+    MAP: '{{ .Setting "map" }}'
+    GAME_PORT: '{{ (.Port "game").Container }}'
+    QUERY_PORT: '{{ (.Port "query").Container }}'
+    RCON_PORT: '{{ (.Port "rcon").Container }}'
+    RCON_ENABLED: '{{ ternary "True" "False" (.SettingBool "rconEnabled") }}'
+    MAX_PLAYERS: '{{ .Setting "slots" }}'
+    MODS: '{{ range $i, $mod := .SettingList "mods" }}{{ if $i }},{{ end }}{{ $mod }}{{ end }}'
+    SESSION_NAME: '{{ .Setting "sessionName" }}'
+    SERVER_PASSWORD: '{{ .Setting "serverPassword" }}'
+    SERVER_ADMIN_PASSWORD: '{{ .Setting "serverAdminPassword" }}'
+    SERVER_GAME_LOG: '{{ .SettingBool "servergamelog" | boolInt }}'
+    SERVER_GAME_LOG_INCLUDE_TRIBE_LOGS: '{{ .SettingBool "servergamelogincludetribelogs" | boolInt }}'
+    FORCE_ALLOW_CAVE_FLYERS: '{{ .SettingBool "forceAllowCaveFlyers" | boolInt }}'
+    ALLOW_FLYER_CARRY_PVE: '{{ .SettingBool "allowFlyerCarryPvE" | boolInt }}'
+    NO_BATTLEYE: '{{ .SettingBool "noBattleye" | boolInt }}'
+    PUBLIC_IP: '{{ .Server.IPv4 }}'
+  # Same command line as entrypoint.sh start(), with one fix: the travel URL is a single argument.
+  # Production built it with eval, so a session name with spaces reached the server as several
+  # arguments and ARK used only the first word (boot test 2026-11-28: "ARK:" instead of the full
+  # name; quoted, the full name is listed).
+  shell: |
+    url="$MAP?listen?MultiHome=0.0.0.0?Port=$GAME_PORT?QueryPort=$QUERY_PORT?RCONPort=$RCON_PORT?RCONEnabled=$RCON_ENABLED?MaxPlayers=$MAX_PLAYERS"
+    if [ -n "$SESSION_NAME" ]; then url="$url?SessionName=$SESSION_NAME"; fi
+    url="$url?bRawSockets"
+    if [ -n "$MODS" ]; then url="$url?GameModIds=$MODS"; fi
+    if [ -n "$SERVER_PASSWORD" ]; then url="$url?ServerPassword=$SERVER_PASSWORD"; fi
+    if [ -n "$SERVER_ADMIN_PASSWORD" ]; then url="$url?ServerAdminPassword=$SERVER_ADMIN_PASSWORD"; fi
+    if [ "$ALLOW_FLYER_CARRY_PVE" = 1 ]; then url="$url?AllowFlyerCarryPvE=true"; fi
+    set -- -server -automanagedmods
+    if [ -n "$PUBLIC_IP" ]; then set -- "$@" -crossplay "-PublicIPForEpic=$PUBLIC_IP"; fi
+    if [ "$SERVER_GAME_LOG" = 1 ]; then set -- "$@" -servergamelog; fi
+    if [ "$SERVER_GAME_LOG_INCLUDE_TRIBE_LOGS" = 1 ]; then set -- "$@" -servergamelogincludetribelogs; fi
+    if [ "$FORCE_ALLOW_CAVE_FLYERS" = 1 ]; then set -- "$@" -ForceAllowCaveFlyers; fi
+    if [ "$NO_BATTLEYE" = 1 ]; then set -- "$@" -NoBattlEye; fi
+    exec ./ShooterGameServer "$url" "$@"
+  # ARK ignores stdin; ipsd sent console commands over RCON.
+  # TODO(M4): ipsd used a setting "rconPassword" that the seeds do not have. ARK authenticates
+  # RCON with ServerAdminPassword, which is used here; check the production setting rows.
+  console:
+    via: rcon
+    port: rcon
+    passwordSetting: serverAdminPassword
+  stop:
+    # Production sent SIGTERM to the entrypoint shell, which ignored it, so the server was
+    # killed after 10 s. SIGINT reaches the server directly; it saves TheIsland.ark and exits
+    # within seconds (boot test 2026-11-28).
+    via: signal
+    signal: SIGINT
+    timeoutSeconds: 60
+  # No ready pattern: ARK prints nothing after the Steam init to stdout (not even with -log, and
+  # ShooterGame.log stays empty), so the server counts as ready once it runs. Boot test 2026-11-28:
+  # A2S answers after about 100 s.
+
+install:
+  - kind: steamcmd
+    appId: 376030
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # post_update() of the production image:
+  # - copy the Steam client libraries from steamcmd once
+  # - install the steamcmd copy that -automanagedmods uses
+  #   (https://steamcommunity.com/app/346110/discussions/0/2523653167135099429/)
+  - kind: script
+    shell: |
+      set -eu
+      cd "$IPS_DATA_PATH"
+      for bits in 32 64; do
+        if [ ! -f ".steam/sdk$bits/steamclient.so" ]; then
+          mkdir -p ".steam/sdk$bits"
+          cp "$STEAMCMD_DIR/linux$bits/steamclient.so" ".steam/sdk$bits/steamclient.so"
+        fi
+      done
+      dir=Engine/Binaries/ThirdParty/SteamCMD/Linux
+      mkdir -p "$dir"
+      if [ ! -f "$dir/steamcmd.sh" ]; then
+        curl -fsSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz -C "$dir"
+      fi
+
+hooks:
+  postInstall:
+    # Mods downloaded by the bundled steamcmd land in Steam/steamapps.
+    - symlink: { target: Steam/steamapps, link: Engine/Binaries/ThirdParty/SteamCMD/Linux/steamapps }
+    # Shortcuts for the file manager.
+    - symlink: { target: ShooterGame/Content/Mods, link: Mods }
+    - symlink: { target: ShooterGame/Saved/Config/LinuxServer/GameUserSettings.ini, link: GameUserSettings.ini }
+    - symlink: { target: ShooterGame/Saved/Config/LinuxServer/Game.ini, link: Game.ini }
+
+query:
+  protocol: a2s
+  port: query
+
+ports:
+  - { identifier: game,      protocol: UDP, default: 7777,  group: 0 }
+  # ARK uses Port+1 implicitly; the port is only reserved.
+  # TODO(M4): production identifier is "rawSocket" (not allowed by the port id pattern); the
+  # migration renames the port rows to "rawsocket".
+  - { identifier: rawsocket, protocol: UDP, default: 7778,  group: 0 }
+  - { identifier: query,     protocol: UDP, default: 27015, group: 1 }
+  - { identifier: rcon,      protocol: TCP, default: 27020, group: 2 }
+
+settings:
+  - key: sessionName
+    name: Servername
+    description: Der Name des Servers in der Serverliste.
+    type: STRING
+    default: 'ARK: Survival Evolved [ips-hosting.com]'
+    validation: { required: true, minLength: 1, maxLength: 255 }
+  - key: slots
+    name: Slots
+    description: Die Slots bestimmen, wie viele Spieler gleichzeitig auf dem Server spielen können.
+    type: NUMBER
+    default: '8'
+    validation: { required: true, integer: true, min: 1, max: 127 }
+  - key: serverPassword
+    name: Server-Passwort
+    description: Das Passwort, das zum Beitreten benötigt wird. Leer lassen für einen öffentlichen Server.
+    type: HIDDENSTRING
+    validation: { maxLength: 255 }
+  - key: map
+    name: Karte
+    description: 'Die Karte, die der Server lädt: TheIsland, TheCenter, Ragnarok, Valguero_P, Extinction, Aberration_P, ScorchedEarth_P, Genesis, Gen2, CrystalIsles, LostIsland, Fjordur oder der Name einer Workshop-Karte.'
+    type: STRING
+    default: TheIsland
+    category: world
+    validation: { required: true, minLength: 1, maxLength: 255 }
+  - key: forceAllowCaveFlyers
+    name: Flugsaurier in Höhlen erlauben
+    description: Erlaubt Flugsaurier in Höhlen (-ForceAllowCaveFlyers).
+    type: BOOLEAN
+    # TODO(M4): the production default is 'false'; the migration maps 'true'/'false' to '1'/'0'.
+    default: '0'
+    category: gameplay
+  - key: allowFlyerCarryPvE
+    name: Flugsaurier dürfen im PvE tragen
+    description: Erlaubt Flugsauriern, im PvE Kreaturen und Spieler aufzuheben (AllowFlyerCarryPvE).
+    type: BOOLEAN
+    default: '0'
+    category: gameplay
+  - key: mods
+    name: Mods
+    description: Steam-Workshop-IDs der Mods, die der Server lädt. Alle Mods werden automatisch installiert und aktuell gehalten.
+    type: STRINGLIST
+    category: mods
+  - key: serverAdminPassword
+    name: Admin-Passwort
+    description: Das Passwort für Admin-Befehle im Spiel und für RCON (Konsole im Webinterface).
+    type: HIDDENSTRING
+    category: admin
+    validation: { maxLength: 255 }
+  - key: rconEnabled
+    name: RCON aktivieren
+    description: Wird für Konsolenbefehle im Webinterface benötigt.
+    type: BOOLEAN
+    default: '0'
+    category: admin
+  - key: servergamelog
+    name: Server-Game-Log
+    description: Schreibt den Server Game Log nach ShooterGame/Saved/Logs. Diese Logs erscheinen nicht in der Konsole des Webinterfaces.
+    type: BOOLEAN
+    default: '0'
+    category: admin
+  - key: servergamelogincludetribelogs
+    name: Tribe-Logs im Server-Game-Log
+    description: Ob Tribe Logs im Server Game Log enthalten sein sollen.
+    type: BOOLEAN
+    default: '0'
+    category: admin
+  - key: noBattleye
+    name: BattlEye deaktivieren
+    description: Startet den Server ohne BattlEye-Anti-Cheat.
+    type: BOOLEAN
+    default: '0'
+    category: advanced
+  - key: betaBranch
+    name: Beta-Branch
+    description: Falls der Server auf einer Beta Branch laufen soll, trage hier ihren Namen ein (Liste unter https://steamdb.info/app/376030/depots/). Beim Wechsel können Server-Dateien überschrieben werden.
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: Beta-Passwort
+    description: Manche Beta Branches sind durch ein Passwort geschützt, welches hier angegeben werden kann.
+    type: HIDDENSTRING
+    category: steamBeta
+
+preconditions:
+  - check:
+      all:
+        - { setting: rconEnabled, truthy: true }
+        - { setting: serverAdminPassword, notEquals: '' }
+    severity: warning
+    message: Konsolenbefehle im Webinterface funktionieren nur mit aktiviertem RCON und gesetztem Admin-Passwort.
+
+protectedFiles:
+  - { path: '/ShooterGame/Binaries/**[!txt]', readOnly: true }
+  - { path: /Engine/**, readOnly: true }
+
+# From ipsd game/ark.go BackupIgnoreList: binaries and downloadable content.
+backupIgnore:
+  - /.steam
+  - /Engine
+  - /PackageInfo.bin
+  - /Steam
+  - /linux64
+  - /steamapps
+  - /steamclient.so
+  - /ShooterGame/AssetRegistry.bin
+  - /ShooterGame/Binaries
+  - /ShooterGame/Content
+  - /ShooterGame/ShooterGame.uproject
+  - /*.dll
+
+requirements:
+  minCpuThreads: 2
+  minRam: 8192
+  minDiskspace: 30

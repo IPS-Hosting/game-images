@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<ServerSettings>
+	<!-- Server representation -->
+	<property name="ServerName" value="My Game Host" />
+	<property name="ServerPort" value="26900"/>
+</ServerSettings>

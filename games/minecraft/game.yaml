@@ -1,0 +1,656 @@
+# Minecraft (Java Edition) — itzg server image; migration target for the existing platform game.
+# Legacy sources:
+#   - ipsd game/minecraft.go (image per javaVersion, itzg environment, JVM heap from box RAM,
+#     EULA check, FTB IGNORE_OFFLINE pre-start fix, GameSpy4 query with server list ping fallback)
+#   - api prisma/seed GameSetting.ts / GameSettingValue.ts / GamePort.ts (names, descriptions, ports)
+#   - frontend pages/gsi/[id]/settings.vue (which settings are shown per server type)
+# STATUS: boot-tested (2026-11-27, game2)
+#
+# The itzg image installs and updates the server itself at every start (no install stages).
+# Setting keys, enum values and port identifiers follow ipsd, which wins over the stale seeds.
+#
+# TODO(M4): defaults of the settings that exist only in ipsd (initHeapMemoryPercentage,
+#   useAikarFlag, useMeowiceFlags, fabricLauncherVersion, fabricLoaderVersion, cfApiKey,
+#   modrinthModpack and the newer server.properties keys) and the javaVersion/type defaults
+#   are not in the seeds; verify them against the production game_setting rows.
+# TODO(M4): production BOOLEAN rows of this game use 'true'/'false' (seed defaults); the
+#   definition uses '0'/'1'. The migration has to normalise stored values ('true' -> '1').
+apiVersion: 1
+
+short: minecraft
+name: Minecraft
+image: https://a.storyblok.com/f/74037/940x529/f9ad76ee36/minecraft.jpg
+tags: [sandbox, survival, building, crafting, moddable, multiplayer]
+
+sources:
+  - kind: manual
+
+run:
+  imageVariants:
+    setting: javaVersion
+    images:
+      '8': itzg/minecraft-server:java8@sha256:0c2235209b6774892af89430f1f40479dcd8c2d04cf3d47b7df8922d0574cdb2
+      '11': itzg/minecraft-server:java11@sha256:06a16407ac39d1021c02be9b0ca814cd7ccbb4683565553b92d99aca27bd4951
+      '16': itzg/minecraft-server:java16@sha256:30c6fdca52226d2cbd4fef624da3ce1d59cde81f6f225ea623ae528be2076270
+      '17': itzg/minecraft-server:java17@sha256:9423e4239cc249da06f1aba8ee87d5a299b6f633491b9b58236d2f1526e97727
+      17-graalvm: itzg/minecraft-server:java17-graalvm@sha256:0eeffda2c4cb51d3624faf48f183f6c593ea2b52eb6d5d927a2f72f727841a2a
+      '21': itzg/minecraft-server:java21@sha256:52a82bdbc7732ec9c6a406f86f76a7e52e2f2aa7c7a46b0322915646759be053
+      21-graalvm: itzg/minecraft-server:java21-graalvm@sha256:abc99cba3492fbe29be643f6b2ecf4cb77d869624793b952b60165e68c49c66d
+      '25': itzg/minecraft-server:java25@sha256:f4375fbbc3e5f797c394856739ea664442d2b5c647470d2c9c7735a96406f8d3
+      25-graalvm: itzg/minecraft-server:java25-graalvm@sha256:8e92db0dae7a44e3707f86a6c386020bebe1b2b8d7effd4ca72c3b9bdbd61cb7
+      STABLE: itzg/minecraft-server:stable@sha256:0634ff76eee896c7e9760a35117d24fad394857d10bc8c1d9bc7f7ff7deef3c2
+      LATEST: itzg/minecraft-server:latest@sha256:f4375fbbc3e5f797c394856739ea664442d2b5c647470d2c9c7735a96406f8d3
+  # The itzg image expects its data at /data; production mounts the server volume there.
+  dataPath: /data
+  # No tmpfs at /tmp: the private tmp directory (bind mount, like production) is writable and
+  # JNA (oshi system report) loads its native library from there.
+  # Boolean settings render as true/false and stay empty when the setting has no value, exactly
+  # like ipsd's boolSettingEnvValue, so the image keeps its own default in that case.
+  env:
+    VERSION: '{{ .Setting "minecraftVersion" }}'
+
+    # Memory: 1 GB (2 GB from 10 GB RAM) stays with the system and the JVM, the rest is heap.
+    # The initial heap is initHeapMemoryPercentage (default 33.33 %) of the maximum heap.
+    MAX_MEMORY: '{{ sub .Server.RamMB (ternary 2048 1024 (ge .Server.RamMB 10240)) }}M'
+    INIT_MEMORY: >-
+      {{ $max := sub .Server.RamMB (ternary 2048 1024 (ge .Server.RamMB 10240)) }}{{ $pct := .Setting "initHeapMemoryPercentage" }}{{ if eq $pct "" }}{{ $pct = "33.33" }}{{ end }}{{ min $max (max 0 (int (mul (intf $max) (div (intf $pct) 100.0)))) }}M
+    USE_AIKAR_FLAGS: '{{ if .Setting "useAikarFlag" }}{{ .SettingBool "useAikarFlag" }}{{ end }}'
+    USE_MEOWICE_FLAGS: '{{ if .Setting "useMeowiceFlags" }}{{ .SettingBool "useMeowiceFlags" }}{{ end }}'
+
+    EULA: '{{ if .Setting "eula" }}{{ .SettingBool "eula" }}{{ end }}'
+
+    SERVER_PORT: '{{ (.Port "game").Container }}'
+    RCON_PORT: '{{ (.Port "rcon").Container }}'
+    QUERY_PORT: '{{ (.Port "query").Container }}'
+    DIFFICULTY: '{{ .Setting "difficulty" }}'
+    ENABLE_WHITELIST: '{{ if .Setting "whitelist" }}{{ .SettingBool "whitelist" }}{{ end }}'
+    ICON: '{{ .Setting "icon" }}'
+    ENABLE_RCON: '{{ if .Setting "rconEnabled" }}{{ .SettingBool "rconEnabled" }}{{ end }}'
+    RCON_PASSWORD: '{{ .Setting "rconPassword" }}'
+    MAX_PLAYERS: '{{ .Setting "maxPlayers" }}'
+    MAX_WORLD_SIZE: '{{ .Setting "maxWorldSize" }}'
+    ALLOW_NETHER: '{{ if .Setting "allowNether" }}{{ .SettingBool "allowNether" }}{{ end }}'
+    ANNOUNCE_PLAYER_ACHIEVEMENTS: '{{ if .Setting "announcePlayerAchievements" }}{{ .SettingBool "announcePlayerAchievements" }}{{ end }}'
+    ENABLE_COMMAND_BLOCK: '{{ if .Setting "enableCommandBlock" }}{{ .SettingBool "enableCommandBlock" }}{{ end }}'
+    FORCE_GAMEMODE: '{{ if .Setting "forceGamemode" }}{{ .SettingBool "forceGamemode" }}{{ end }}'
+    GENERATE_STRUCTURES: '{{ if .Setting "generateStructures" }}{{ .SettingBool "generateStructures" }}{{ end }}'
+    HARDCORE: '{{ if .Setting "hardcore" }}{{ .SettingBool "hardcore" }}{{ end }}'
+    SNOOPER_ENABLED: '{{ if .Setting "snooper" }}{{ .SettingBool "snooper" }}{{ end }}'
+    MAX_BUILD_HEIGHT: '{{ .Setting "maxBuildHeight" }}'
+    MAX_TICK_TIME: '{{ .Setting "maxTickTime" }}'
+    SPAWN_ANIMALS: '{{ if .Setting "spawnAnimals" }}{{ .SettingBool "spawnAnimals" }}{{ end }}'
+    SPAWN_MONSTERS: '{{ if .Setting "spawnMonsters" }}{{ .SettingBool "spawnMonsters" }}{{ end }}'
+    SPAWN_NPCS: '{{ if .Setting "spawnNPCs" }}{{ .SettingBool "spawnNPCs" }}{{ end }}'
+    SPAWN_PROTECTION: '{{ .Setting "spawnProtection" }}'
+    VIEW_DISTANCE: '{{ .Setting "viewDistance" }}'
+    SEED: '{{ .Setting "levelSeed" }}'
+    MODE: '{{ .Setting "gameMode" }}'
+    MOTD: '{{ .Setting "motd" }}'
+    PVP: '{{ if .Setting "pvpEnabled" }}{{ .SettingBool "pvpEnabled" }}{{ end }}'
+    LEVEL_TYPE: '{{ .Setting "levelType" }}'
+    GENERATOR_SETTINGS: '{{ .Setting "levelGeneratorSettings" }}'
+    RESOURCE_PACK: '{{ .Setting "resourcePack" }}'
+    RESOURCE_PACK_SHA1: '{{ .Setting "resourcePackSha1" }}'
+    LEVEL: '{{ .Setting "level" }}'
+    ONLINE_MODE: '{{ if .Setting "onlineMode" }}{{ .SettingBool "onlineMode" }}{{ end }}'
+    ALLOW_FLIGHT: '{{ if .Setting "allowFlight" }}{{ .SettingBool "allowFlight" }}{{ end }}'
+    PLAYER_IDLE_TIMEOUT: '{{ .Setting "playerIdleTimeout" }}'
+    SYNC_CHUNK_WRITES: '{{ if .Setting "syncChunkWrites" }}{{ .SettingBool "syncChunkWrites" }}{{ end }}'
+    ENABLE_STATUS: '{{ if .Setting "enableStatus" }}{{ .SettingBool "enableStatus" }}{{ end }}'
+    ENTITY_BROADCAST_RANGE_PERCENTAGE: '{{ .Setting "entityBroadcastRangePercentage" }}'
+    FUNCTION_PERMISSION_LEVEL: '{{ .Setting "functionPermissionLevel" }}'
+    NETWORK_COMPRESSION_THRESHOLD: '{{ .Setting "networkCompressionThreshold" }}'
+    OP_PERMISSION_LEVEL: '{{ .Setting "opPermissionLevel" }}'
+    PREVENT_PROXY_CONNECTIONS: '{{ if .Setting "preventProxyConnections" }}{{ .SettingBool "preventProxyConnections" }}{{ end }}'
+    USE_NATIVE_TRANSPORT: '{{ if .Setting "useNativeTransport" }}{{ .SettingBool "useNativeTransport" }}{{ end }}'
+    SIMULATION_DISTANCE: '{{ .Setting "simulationDistance" }}'
+
+    # Server type. ipsd sets TYPE and the type specific variables only for the matching type;
+    # here they render empty otherwise, which the image treats as unset. An unknown type
+    # leaves TYPE empty (image default VANILLA), as in ipsd.
+    TYPE: >-
+      {{ $t := .Setting "type" }}{{ if eq $t "Vanilla" }}VANILLA{{ else if eq $t "Fabric" }}FABRIC{{ else if eq $t "Forge" }}FORGE{{ else if eq $t "Paper" }}PAPER{{ else if eq $t "Sponge" }}SPONGEVANILLA{{ else if eq $t "CurseForge" }}AUTO_CURSEFORGE{{ else if eq $t "Feed the Beast" }}FTBA{{ else if eq $t "Modrinth" }}MODRINTH{{ else if eq $t "GT New Horizons" }}GTNH{{ else if eq $t "Custom" }}CUSTOM{{ end }}
+    FABRIC_LAUNCHER_VERSION: '{{ if eq (.Setting "type") "Fabric" }}{{ .Setting "fabricLauncherVersion" }}{{ end }}'
+    # TODO(M4): ipsd passes the loader version as FABRID_LOADER_VERSION (typo), so the image
+    #   ignores it in production. Kept as is to not change running servers; switch to
+    #   FABRIC_LOADER_VERSION together with the migration once it is announced.
+    FABRID_LOADER_VERSION: '{{ if eq (.Setting "type") "Fabric" }}{{ .Setting "fabricLoaderVersion" }}{{ end }}'
+    FORGE_VERSION: '{{ if eq (.Setting "type") "Forge" }}{{ .Setting "forgeVersion" }}{{ end }}'
+    CF_API_KEY: '{{ if eq (.Setting "type") "CurseForge" }}{{ .Setting "cfApiKey" }}{{ end }}'
+    # cfModpack: an https URL is a modpack page URL, anything else a slug (as in ipsd).
+    CF_PAGE_URL: >-
+      {{ $m := .Setting "cfModpack" }}{{ if and (eq (.Setting "type") "CurseForge") (hasPrefix "https://" (lower $m)) }}{{ $m }}{{ end }}
+    CF_SLUG: >-
+      {{ $m := .Setting "cfModpack" }}{{ if and (eq (.Setting "type") "CurseForge") (ne $m "") (not (hasPrefix "https://" (lower $m))) }}{{ $m }}{{ end }}
+    FTB_MODPACK_ID: '{{ if eq (.Setting "type") "Feed the Beast" }}{{ .Setting "ftbModpackId" }}{{ end }}'
+    FTB_MODPACK_VERSION_ID: '{{ if eq (.Setting "type") "Feed the Beast" }}{{ .Setting "ftbModpackVersionId" }}{{ end }}'
+    MODRINTH_MODPACK: '{{ if eq (.Setting "type") "Modrinth" }}{{ .Setting "modrinthModpack" }}{{ end }}'
+    CUSTOM_SERVER: '{{ if eq (.Setting "type") "Custom" }}{{ .Setting "customServer" }}{{ end }}'
+  # Constant variables and the type specific ones are exported here (run.env is limited to 64
+  # entries). Empty variables are unset so that the image keeps its own defaults (ipsd does not
+  # set the type specific ones for other types). Then the image entrypoint runs, as in production.
+  shell: |
+    export GUI=FALSE LOG_TIMESTAMP=true OVERRIDE_SERVER_PROPERTIES=true SERVER_IP=0.0.0.0 ENABLE_QUERY=true
+    export OVERRIDE_WHITELIST="$ENABLE_WHITELIST"
+    case "$TYPE" in
+      SPONGEVANILLA) export SPONGEVERSION=STABLE ;;
+      GTNH) export GTNH_PACK_VERSION=latest ;;
+    esac
+    # Every empty variable is unset: the image writes a set but empty variable as an empty
+    # server.properties value (e.g. simulation-distance=), which the server cannot parse.
+    for name in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=$/\1/p'); do
+      unset "$name"
+    done
+    unset name
+    exec /image/scripts/start
+  console:
+    via: stdin
+  # The image forwards SIGTERM to the server, which saves the worlds and stops.
+  stop:
+    via: signal
+    signal: SIGTERM
+    timeoutSeconds: 30
+  ready:
+    pattern: 'Done \([0-9.,]+m?s\)! For help, type'
+
+# Some modpack start scripts ping the internet before starting; ping cannot work without
+# NET_RAW, so the check is disabled (ipsd DisableGameServerOnlineChecks).
+config:
+  - path: FeedTheBeast/settings.cfg
+    format: properties
+    onlyIfExists: true
+    values:
+      IGNORE_OFFLINE: '1'
+
+players:
+  joinPattern: ': (?P<name>[A-Za-z0-9_]{1,16}) joined the game$'
+  leavePattern: ': (?P<name>[A-Za-z0-9_]{1,16}) left the game$'
+
+# GameSpy4 (enable-query is always on) on the UDP game port, server list ping on the TCP
+# port as fallback, exactly like ipsd.
+query:
+  protocol: minecraft
+  port: game
+  fallbackPort: query
+
+ports:
+  - { identifier: game,  protocol: UDP, default: 25565, group: 0 }
+  - { identifier: query, protocol: TCP, default: 25565, group: 0 }
+  - { identifier: rcon,  protocol: TCP, default: 25575, group: 1 }
+
+settings:
+  # General
+  - key: type
+    name: { de: Typ, en: Type }
+    description: Legt den Typ des Minecraft Servers fest.
+    type: STRINGENUM
+    default: Vanilla
+    values:
+      - { value: Vanilla, label: Vanilla }
+      - { value: Paper, label: Paper }
+      - { value: Fabric, label: Fabric }
+      - { value: Forge, label: Forge }
+      - { value: Sponge, label: Sponge }
+      - { value: CurseForge, label: CurseForge Modpack }
+      - { value: Feed the Beast, label: Feed the Beast Modpack }
+      - { value: Modrinth, label: Modrinth Modpack }
+      - { value: GT New Horizons, label: GT New Horizons }
+      - { value: Custom, label: { de: Eigene Server JAR, en: Custom server JAR } }
+    validation: { required: true }
+  - key: minecraftVersion
+    name: Minecraft-Version
+    description: >-
+      Die Minecraft Version, auf der der Server läuft. LATEST aktualisiert den Server bei jedem Start
+      automatisch auf die neueste Version. SNAPSHOT nutzt immer die letzte Snapshot Version. Um z.B.
+      Minecraft Version 1.7.9 zu installieren muss hier 1.7.9 eingetragen werden.
+      Achtung: Das Wechseln auf eine ältere Version kann die Welt beschädigen.
+    type: STRING
+    default: LATEST
+    # Modpacks bring their Minecraft version in their manifest.
+    visibleWhen: { not: { setting: type, in: [Custom, CurseForge, Feed the Beast, GT New Horizons, Modrinth] } }
+    validation: { maxLength: 64, pattern: '[A-Za-z0-9._-]+' }
+  - key: customServer
+    name: Custom Server
+    description: >-
+      Der Name der JAR Datei, die geladen werden soll. Die Datei muss sich im Root-Verzeichnis befinden.
+      Kann auch eine URL zu einer Datei sein, die automatisch beim Start heruntergeladen wird.
+    type: STRING
+    visibleWhen: { setting: type, equals: Custom }
+    validation: { maxLength: 2048 }
+  - key: fabricLauncherVersion
+    name: Fabric-Launcher-Version
+    description: Die Version des Fabric Launchers. Leer lassen für die neueste Version.
+    type: STRING
+    visibleWhen: { setting: type, equals: Fabric }
+    validation: { maxLength: 64 }
+  - key: fabricLoaderVersion
+    name: Fabric-Loader-Version
+    description: Die Version des Fabric Loaders. Leer lassen für die neueste Version.
+    type: STRING
+    visibleWhen: { setting: type, equals: Fabric }
+    validation: { maxLength: 64 }
+  - key: forgeVersion
+    name: Forge-Version
+    description: >-
+      Die Version von Forge, die installiert wird. RECOMMENDED installiert die Version, die für die
+      ausgewählte Minecraft Version empfohlen wird.
+    type: STRING
+    default: RECOMMENDED
+    visibleWhen: { setting: type, equals: Forge }
+    validation: { maxLength: 64 }
+  - key: cfModpack
+    name: Modpack
+    description: >-
+      Die URL der CurseForge Modpack-Seite (https://www.curseforge.com/minecraft/modpacks/…) oder der
+      Slug des Modpacks.
+    type: STRING
+    visibleWhen: { setting: type, equals: CurseForge }
+    validation: { maxLength: 2048 }
+  - key: cfApiKey
+    name: CurseForge-API-Key
+    description: Ein eigener CurseForge API Key, der zum Herunterladen des Modpacks genutzt wird.
+    type: HIDDENSTRING
+    visibleWhen: { setting: type, equals: CurseForge }
+    validation: { maxLength: 256 }
+  - key: ftbModpackId
+    name: Modpack-ID
+    description: >-
+      Die ID des FTB Modpacks. Unter https://www.feed-the-beast.com/modpack gibt es eine Liste aller
+      Modpacks. Klicke auf ein Modpack um die ID zu finden.
+    type: NUMBER
+    visibleWhen: { setting: type, equals: Feed the Beast }
+    validation: { integer: true, min: 1 }
+  - key: ftbModpackVersionId
+    name: Modpack-Versions-ID
+    description: Die Versions ID des FTB Modpacks (optional). Leer lassen, um die neueste Version zu installieren.
+    type: NUMBER
+    visibleWhen: { setting: type, equals: Feed the Beast }
+    validation: { integer: true, min: 1 }
+  - key: modrinthModpack
+    name: Modrinth-Modpack
+    description: Der Slug, die ID oder die URL des Modrinth Modpacks.
+    type: STRING
+    visibleWhen: { setting: type, equals: Modrinth }
+    validation: { maxLength: 2048 }
+  - key: javaVersion
+    name: Java-Version
+    description: >-
+      Die Java Version, die der Server nutzen soll. Je nach Typ und Modpack, werden eventuell nur
+      bestimmte Versionen unterstützt.
+    type: STRINGENUM
+    default: LATEST
+    values:
+      - { value: LATEST, label: { de: Neueste, en: Latest } }
+      - { value: STABLE, label: { de: Stabil, en: Stable } }
+      - { value: '25', label: Java 25 }
+      - { value: 25-graalvm, label: Java 25 (GraalVM) }
+      - { value: '21', label: Java 21 }
+      - { value: 21-graalvm, label: Java 21 (GraalVM) }
+      - { value: '17', label: Java 17 }
+      - { value: 17-graalvm, label: Java 17 (GraalVM) }
+      - { value: '16', label: Java 16 }
+      - { value: '11', label: Java 11 }
+      - { value: '8', label: Java 8 }
+    validation: { required: true }
+  - key: eula
+    name: { de: EULA akzeptieren, en: Accept EULA }
+    description: >-
+      Um den Server zu starten, musst du die Minecraft EULA (https://aka.ms/MinecraftEULA) akzeptieren.
+    type: BOOLEAN
+    default: '0'
+
+  # Performance
+  - key: initHeapMemoryPercentage
+    name: { de: Initialer Heap (%), en: Initial heap (%) }
+    description: >-
+      Anteil des maximalen Java Heaps, der beim Start reserviert wird (-Xms). Standard 33,33 %.
+      Ein höherer Wert kann bei großen Modpacks die Leistung verbessern.
+    type: NUMBER
+    category: performance
+    validation: { min: 0, max: 100 }
+  - key: useAikarFlag
+    name: { de: Aikar-Flags nutzen, en: Use Aikar flags }
+    description: Nutzt die von Aikar optimierten JVM Flags für den Garbage Collector.
+    type: BOOLEAN
+    category: performance
+  - key: useMeowiceFlags
+    name: { de: MeowIce-Flags nutzen, en: Use MeowIce flags }
+    description: Nutzt die MeowIce JVM Flags (ab Java 17).
+    type: BOOLEAN
+    category: performance
+
+  # Server properties
+  - key: maxPlayers
+    name: Maximale Spieler (Slots)
+    description: Die maximale Anzahl Spieler, die gleichzeitig auf dem Server sein können.
+    type: NUMBER
+    default: '20'
+    category: gameplay
+    validation: { integer: true, min: 1, max: 10000 }
+  - key: gameMode
+    name: Game Mode
+    description: Der Spielmodus. Spectator ist erst ab Minecraft 1.8 verfügbar.
+    type: STRINGENUM
+    default: survival
+    category: gameplay
+    values:
+      - { value: survival, label: Survival }
+      - { value: creative, label: Creative }
+      - { value: adventure, label: Adventure }
+      - { value: spectator, label: Spectator }
+  - key: forceGamemode
+    name: Gamemode erzwingen
+    description: Ob Spieler beim Beitreten automatisch in den eingestellten Spielmodus gesetzt werden.
+    type: BOOLEAN
+    default: '0'
+    category: gameplay
+  - key: motd
+    name: Nachricht des Tages
+    description: Die Nachricht, die unter dem Server Namen im Server Browser angezeigt wird.
+    type: STRING
+    default: A Minecraft server powered by ips-hosting.com
+    category: general
+    validation: { maxLength: 512 }
+  - key: difficulty
+    name: Schwierigkeitsgrad
+    description: Bestimmt wie viele Mobs es gibt, wie stark sie sind und wie schnell man Hunger verliert.
+    type: STRINGENUM
+    default: easy
+    category: gameplay
+    values:
+      - { value: peaceful, label: { de: Friedlich, en: Peaceful } }
+      - { value: easy, label: { de: Einfach, en: Easy } }
+      - { value: normal, label: { de: Normal, en: Normal } }
+      - { value: hard, label: { de: Schwer, en: Hard } }
+  - key: level
+    name: Weltname
+    description: Der Name der Welt, die geladen wird. Jede Welt hat einen eigenen Ordner.
+    type: STRING
+    default: world
+    category: world
+    validation: { required: true, maxLength: 255, pattern: '[^/\\]+' }
+  - key: levelType
+    name: Welttyp
+    description: Der Typ der generierten Welt (z. B. DEFAULT, FLAT, LARGEBIOMES, AMPLIFIED).
+    type: STRING
+    default: DEFAULT
+    category: world
+    validation: { maxLength: 255 }
+  - key: levelSeed
+    name: Level-Seed
+    description: Ein optionaler Seed, mit dem die Welt generiert wird.
+    type: STRING
+    category: world
+    validation: { maxLength: 255 }
+  - key: levelGeneratorSettings
+    name: Weltgenerator-Einstellungen
+    description: >-
+      Erweiterte Einstellungen für das Generieren der Welt. Greift nur, wenn FLAT, CUSTOMIZED oder
+      BUFFET als Welt Typ ausgewählt ist.
+    type: STRING
+    category: world
+    validation: { maxLength: 8192 }
+  - key: maxWorldSize
+    name: Maximale Weltgröße
+    description: Die maximale Größe der Welt (Radius in Blöcken).
+    type: NUMBER
+    default: '29999984'
+    category: world
+    validation: { integer: true, min: 1, max: 29999984 }
+  - key: maxBuildHeight
+    name: Maximale Bauhöhe
+    description: Die maximale Höhe, in der es erlaubt ist zu Bauen (nur ältere Minecraft Versionen).
+    type: NUMBER
+    default: '256'
+    category: world
+    validation: { integer: true, min: 1 }
+  - key: generateStructures
+    name: Strukturen generieren
+    description: Ob Strukturen, wie Dörfer generiert werden sollen.
+    type: BOOLEAN
+    default: '1'
+    category: world
+  - key: allowNether
+    name: Nether erlauben
+    description: Ob Spieler in den Nether reisen dürfen.
+    type: BOOLEAN
+    default: '1'
+    category: world
+  - key: spawnProtection
+    name: Spawn-Schutz
+    description: Die Größe des Bereichs um den Spawn, in dem nur OPs (ab)bauen können. 0 zum Deaktivieren.
+    type: NUMBER
+    default: '16'
+    category: gameplay
+    validation: { integer: true, min: 0 }
+  - key: resourcePack
+    name: Server-Resource-Pack
+    description: >-
+      Eine URL zu einem Direkt-Download eines Ressourcenpakets. Beim Beitritt werden Spieler gefragt,
+      ob sie das Resource Pack herunterladen möchten.
+    type: STRING
+    category: general
+    validation: { maxLength: 2048, pattern: 'https?://\S+' }
+  - key: resourcePackSha1
+    name: Server-Resource-Pack-Prüfsumme
+    description: Eine optionale SHA-1 Checksum, um das heruntergeladene Resource Pack zu verifizieren.
+    type: STRING
+    category: general
+    validation: { pattern: '[A-Fa-f0-9]{40}' }
+  - key: icon
+    name: Server-Icon
+    description: Eine URL zu einem Bild, das als Icon im Server Browser angezeigt wird.
+    type: STRING
+    category: general
+    validation: { maxLength: 2048, pattern: 'https?://\S+' }
+  - key: viewDistance
+    name: Sichtdistanz
+    description: >-
+      Die Anzahl Chunks der Welt in jeder Richtung des Spielers, die der Server an Spieler sendet. Ein
+      höherer Wert benötigt mehr Leistung.
+    type: NUMBER
+    default: '10'
+    category: performance
+    validation: { integer: true, min: 2, max: 32 }
+  - key: simulationDistance
+    name: Simulationsdistanz
+    description: Die Anzahl Chunks um Spieler, in denen die Welt simuliert wird (ab Minecraft 1.18).
+    type: NUMBER
+    category: performance
+    validation: { integer: true, min: 2, max: 32 }
+  - key: maxTickTime
+    name: Maximale Tick-Zeit
+    description: >-
+      Die maximale Anzahl Millisekunden, die ein Tick brauchen darf, bevor der Server ausgeschaltet
+      wird. -1 zum Deaktivieren.
+    type: NUMBER
+    default: '60000'
+    category: performance
+    validation: { integer: true, min: -1 }
+  - key: syncChunkWrites
+    name: Synchrones Chunk-Speichern
+    description: Ob Chunks synchron geschrieben werden. Sicherer, aber langsamer.
+    type: BOOLEAN
+    category: performance
+  - key: entityBroadcastRangePercentage
+    name: Entity-Sichtweite (%)
+    description: Wie weit Entities an Spieler gesendet werden, in Prozent des Standardwerts.
+    type: NUMBER
+    category: performance
+    validation: { integer: true, min: 10, max: 1000 }
+  - key: networkCompressionThreshold
+    name: Netzwerkkompression ab (Bytes)
+    description: Pakete ab dieser Größe werden komprimiert. -1 deaktiviert die Kompression.
+    type: NUMBER
+    category: performance
+    validation: { integer: true, min: -1 }
+  - key: useNativeTransport
+    name: Native Transport
+    description: Nutzt optimiertes Paketsenden unter Linux.
+    type: BOOLEAN
+    category: performance
+  - key: onlineMode
+    name: Online-Modus
+    description: Ob nur Spieler mit einem gültigen Minecraft Account dem Server beitreten können.
+    type: BOOLEAN
+    default: '1'
+    category: admin
+  - key: whitelist
+    name: Whitelist
+    description: >-
+      Ob die Whitelist aktiviert sein soll. Weitere Informationen:
+      https://help.ips-hosting.com/de/article/minecraft-whitelist-einrichten-14ktvd/
+    type: BOOLEAN
+    default: '0'
+    category: admin
+  - key: preventProxyConnections
+    name: Proxy-Verbindungen verhindern
+    description: Trennt Spieler, deren IP-Adresse nicht zur Anmeldung bei Mojang passt.
+    type: BOOLEAN
+    category: admin
+  - key: opPermissionLevel
+    name: OP-Berechtigungsstufe
+    description: Die Berechtigungsstufe von Operatoren (1–4).
+    type: NUMBER
+    category: admin
+    validation: { integer: true, min: 1, max: 4 }
+  - key: functionPermissionLevel
+    name: Funktions-Berechtigungsstufe
+    description: Die Berechtigungsstufe von Funktionen aus Datapacks (1–4).
+    type: NUMBER
+    category: admin
+    validation: { integer: true, min: 1, max: 4 }
+  - key: playerIdleTimeout
+    name: AFK-Kick (Minuten)
+    description: Spieler werden nach so vielen Minuten Inaktivität gekickt. 0 zum Deaktivieren.
+    type: NUMBER
+    category: admin
+    validation: { integer: true, min: 0 }
+  - key: enableStatus
+    name: Status anzeigen
+    description: Ob der Server im Server Browser als online angezeigt wird.
+    type: BOOLEAN
+    category: admin
+  - key: pvpEnabled
+    name: PvP-Modus
+    description: Ob Spieler anderen Spielern Schaden zufügen können.
+    type: BOOLEAN
+    default: '1'
+    category: gameplay
+  - key: hardcore
+    name: Hardcore-Modus
+    description: Ob Spieler in den Spectator Modus kommen, wenn sie sterben.
+    type: BOOLEAN
+    default: '0'
+    category: gameplay
+  - key: allowFlight
+    name: Flug erlauben
+    description: Erlaubt Spielern das Fliegen in Survival Mode, wenn sie ein Mod dafür installiert haben.
+    type: BOOLEAN
+    default: '0'
+    category: gameplay
+  - key: announcePlayerAchievements
+    name: Spieler-Achievements ankündigen
+    description: Ob Achievements, die Spieler erreichen, angekündigt werden sollen.
+    type: BOOLEAN
+    default: '1'
+    category: gameplay
+  - key: enableCommandBlock
+    name: Command-Blöcke
+    description: Ob Command Blöcke aktiviert sein sollen.
+    type: BOOLEAN
+    default: '0'
+    category: gameplay
+  - key: spawnAnimals
+    name: Tiere spawnen
+    description: Ob Tiere gespawnt werden sollen.
+    type: BOOLEAN
+    default: '1'
+    category: gameplay
+  - key: spawnMonsters
+    name: Monster spawnen
+    description: Ob Monster gespawnt werden sollen.
+    type: BOOLEAN
+    default: '1'
+    category: gameplay
+  - key: spawnNPCs
+    name: NPCs spawnen
+    description: Ob NPCs gespawnt werden sollen.
+    type: BOOLEAN
+    default: '1'
+    category: gameplay
+  - key: snooper
+    name: Snooper
+    description: Ob Nutzungsdaten an Mojang gesendet werden sollen (nur ältere Minecraft Versionen).
+    type: BOOLEAN
+    default: '1'
+    category: advanced
+
+  # RCON
+  - key: rconEnabled
+    name: Rcon
+    description: Ob Rcon aktiviert ist.
+    type: BOOLEAN
+    default: '0'
+    category: admin
+  - key: rconPassword
+    name: RCON-Passwort
+    description: Das Passwort, welches zum Verbinden via Rcon benötigt wird.
+    # TODO(M4): STRING in production (seed); HIDDENSTRING here, the value is a secret.
+    type: HIDDENSTRING
+    default: ''
+    category: admin
+    visibleWhen: { setting: rconEnabled, truthy: true }
+    validation: { maxLength: 255 }
+
+preconditions:
+  - check: { setting: eula, truthy: true }
+    message:
+      de: Um den Server zu starten, musst du die Minecraft EULA akzeptieren.
+      en: You have to accept the Minecraft EULA to start the server.
+    severity: error
+  - check:
+      any:
+        - { setting: rconEnabled, truthy: false }
+        - { setting: rconPassword, minLength: 1 }
+    message:
+      de: Rcon ist aktiviert, aber es ist kein Rcon Passwort gesetzt.
+      en: Rcon is enabled but no Rcon password is set.
+    severity: warning
+  - check:
+      any:
+        - { not: { setting: type, equals: Custom } }
+        - { setting: customServer, minLength: 1 }
+    message:
+      de: Für den Typ „Eigene Server JAR“ muss eine JAR Datei oder URL angegeben werden.
+      en: The custom server type needs a JAR file or URL.
+    severity: warning
+  - check:
+      any:
+        - { not: { setting: type, equals: CurseForge } }
+        - { setting: cfModpack, minLength: 1 }
+    message:
+      de: Für den Typ CurseForge muss ein Modpack angegeben werden.
+      en: The CurseForge type needs a modpack.
+    severity: warning
+  - check:
+      any:
+        - { not: { setting: type, equals: Feed the Beast } }
+        - { setting: ftbModpackId, minLength: 1 }
+    message:
+      de: Für den Typ Feed the Beast muss eine Modpack ID angegeben werden.
+      en: The Feed the Beast type needs a modpack id.
+    severity: warning
+  - check:
+      any:
+        - { not: { setting: type, equals: Modrinth } }
+        - { setting: modrinthModpack, minLength: 1 }
+    message:
+      de: Für den Typ Modrinth muss ein Modpack angegeben werden.
+      en: The Modrinth type needs a modpack.
+    severity: warning
+
+requirements:
+  minCpuThreads: 1
+  minRam: 2048
+  minDiskspace: 5

@@ -1,0 +1,213 @@
+# Arma Reforger — new game, derived from the Pelican egg (games-steamcmd arma/arma_reforger).
+# STATUS: boot-tested (2026-11-28, game2); the stop after a restored session ends with a kill (see stop)
+#
+# The egg writes config.json once at install; here a default file is placed at install and copied
+# to config.json only if it is missing, so values the customer edits (mods, admins, game
+# properties) survive updates. Mods are downloaded by the server itself from the Bohemia workshop.
+apiVersion: 1
+
+short: armareforger
+name: Arma Reforger
+steamAppId: 1874880
+tags: [action, fps, tactical, multiplayer, pvp, moddable]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:arma/arma_reforger/egg-arma-reforger.json
+    license: MIT
+
+run:
+  image: ghcr.io/parkervcp/steamcmd:debian@sha256:c59cff8cd1202c8f283b8b36344166a9fc16e3f781aa1be7d10187cd9d7566d8
+  dataPath: /home/container
+  exec:
+    - ./ArmaReforgerServer
+    - -gproj
+    - ./addons/data/ArmaReforger.gproj
+    - -config
+    - ./config.json
+    - -profile
+    - ./profile
+    - -addonTempDir
+    - ./tmp
+    - -backendlog
+    - -nothrow
+    - -listScenarios
+    - -maxFPS
+    - '{{ .Setting "maxFps" }}'
+  console:
+    via: none
+  stop:
+    via: signal
+    signal: SIGINT
+    # After a restored session ("[PERSISTENCE] Session restored") the server hangs on exit after
+    # "Save completed successfully" and "Replication finished" (boot test 2026-11-28, twice): the
+    # engine kills it after the timeout, the save is already written. A fresh playthrough exits in
+    # seconds.
+    timeoutSeconds: 90
+  ready:
+    pattern: 'Starting RPL server'
+
+install:
+  - kind: steamcmd
+    appId: 1874900
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # Steamworks SDK redistributable (the egg installs it as well): linux64/steamclient.so.
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
+    steamSdk: true
+
+hooks:
+  postInstall:
+    - ensureDir: { path: profile }
+    - ensureDir: { path: tmp }
+    # String-typed skeleton, so numeric names or passwords stay JSON strings.
+    - writeFile:
+        path: .ips/config.default.json
+        content: |
+          {
+            "bindAddress": "0.0.0.0",
+            "bindPort": 2001,
+            "publicAddress": "",
+            "publicPort": 2001,
+            "a2s": { "address": "0.0.0.0", "port": 17777 },
+            "game": {
+              "name": "",
+              "password": "",
+              "passwordAdmin": "",
+              "admins": [],
+              "scenarioId": "",
+              "maxPlayers": 32,
+              "visible": true,
+              "crossPlatform": true,
+              "gameProperties": {
+                "serverMaxViewDistance": 1600,
+                "serverMinGrassDistance": 50,
+                "networkViewDistance": 1500,
+                "disableThirdPerson": false,
+                "fastValidation": true,
+                "battlEye": true,
+                "VONDisableUI": false,
+                "VONDisableDirectSpeechUI": false
+              },
+              "mods": []
+            }
+          }
+
+config:
+  - path: config.json
+    format: json
+    createFrom: .ips/config.default.json
+    values:
+      bindAddress: 0.0.0.0
+      bindPort: '{{ (.Port "game").Container }}'
+      publicAddress: '{{ .Server.IPv4 }}'
+      publicPort: '{{ (.Port "game").Exposed }}'
+      a2s.address: 0.0.0.0
+      a2s.port: '{{ (.Port "query").Container }}'
+      game.name: '{{ .Setting "name" }}'
+      game.password: '{{ .Setting "password" }}'
+      game.passwordAdmin: '{{ .Setting "adminPassword" }}'
+      game.scenarioId: '{{ .Setting "scenarioId" }}'
+      game.maxPlayers: '{{ .Setting "maxPlayers" }}'
+      game.visible: '{{ .SettingBool "public" }}'
+      game.crossPlatform: '{{ .SettingBool "crossPlatform" }}'
+      game.gameProperties.disableThirdPerson: '{{ .SettingBool "disableThirdPerson" }}'
+      game.gameProperties.battlEye: '{{ .SettingBool "battlEye" }}'
+
+query:
+  protocol: a2s
+  port: query
+
+ports:
+  - { identifier: game,  protocol: UDP, default: 2001,  group: 0 }
+  - { identifier: query, protocol: UDP, default: 17777, group: 1 }
+
+settings:
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Mein Arma Reforger Server
+    validation: { required: true, minLength: 3, maxLength: 255 }
+  - key: password
+    name: { de: Server-Passwort, en: Server password }
+    description: { de: Leer lassen für einen öffentlichen Server., en: Leave empty for a public server. }
+    type: HIDDENSTRING
+    validation: { maxLength: 32, pattern: '[^ ]*' }
+  - key: adminPassword
+    name: { de: Admin-Passwort, en: Admin password }
+    description: { de: 'Im Spiel mit #login <Passwort> als Admin anmelden.', en: 'Log in as admin in game with #login <password>.' }
+    type: HIDDENSTRING
+    category: admin
+    generate: { length: 16 }
+    validation: { maxLength: 32, pattern: '[^ ]*' }
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '32'
+    validation: { integer: true, min: 1, max: 128 }
+  - key: scenarioId
+    name: { de: Szenario, en: Scenario }
+    description:
+      de: 'Szenario-ID, z. B. {ECC61978EDCC2B5A}Missions/23_Campaign.conf (Conflict Everon). Verfügbare Szenarien stehen beim Start im Log.'
+      en: 'Scenario id, e.g. {ECC61978EDCC2B5A}Missions/23_Campaign.conf (Conflict Everon). Available scenarios are listed in the log at start.'
+    type: STRING
+    default: '{ECC61978EDCC2B5A}Missions/23_Campaign.conf'
+    category: gameplay
+    validation: { required: true, maxLength: 255, pattern: '\{[0-9A-F]{16}\}[A-Za-z0-9_./-]+' }
+  - key: public
+    name: { de: In Serverliste anzeigen, en: Show in server list }
+    type: BOOLEAN
+    default: '1'
+    category: network
+  - key: crossPlatform
+    name: Crossplay
+    description: { de: Erlaubt Spielern von Xbox und PlayStation den Beitritt (nur ohne Mods)., en: Allows Xbox and PlayStation players to join (unmodded servers only). }
+    type: BOOLEAN
+    default: '1'
+    category: network
+  - key: battlEye
+    name: BattlEye
+    type: BOOLEAN
+    default: '1'
+    category: network
+  - key: disableThirdPerson
+    name: { de: Third-Person deaktivieren, en: Disable third person }
+    type: BOOLEAN
+    default: '0'
+    category: gameplay
+  - key: maxFps
+    name: { de: Maximale Server-FPS, en: Max server FPS }
+    description: { de: Begrenzt die CPU-Last des Servers., en: Limits the CPU load of the server. }
+    type: NUMBER
+    default: '60'
+    category: performance
+    validation: { integer: true, min: 20, max: 120 }
+  - key: betaBranch
+    name: Beta-Branch
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: { de: Beta-Passwort, en: Beta password }
+    type: HIDDENSTRING
+    category: steamBeta
+
+protectedFiles:
+  - { path: /.ips/**, readOnly: true }
+  - { path: /ArmaReforgerServer, readOnly: true }
+  - { path: /addons/data/**, readOnly: true }
+  - { path: /steamworks/**, readOnly: true }
+
+backupIgnore:
+  - addons/**
+  - steamapps/**
+  - steamworks/**
+  - tmp/**
+  - profile/addons/**
+  - profile/logs/**
+
+requirements:
+  minCpuThreads: 2
+  minRam: 6144
+  minDiskspace: 20

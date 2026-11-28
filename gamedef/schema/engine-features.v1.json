@@ -1,0 +1,37 @@
+{
+  "baseline": 1,
+  "features": [
+    {
+      "path": "/run/imageVariants",
+      "engine": 1
+    },
+    {
+      "path": "/run/machineId",
+      "engine": 1
+    },
+    {
+      "path": "/run/tmpfs",
+      "engine": 1
+    },
+    {
+      "path": "/install/*/beta",
+      "engine": 1
+    },
+    {
+      "path": "/install/*/steamSdk",
+      "engine": 1
+    },
+    {
+      "path": "/settings/*/generate",
+      "engine": 1
+    },
+    {
+      "path": "/protectedFiles",
+      "engine": 1
+    },
+    {
+      "path": "/hooks/*/*/writeFile/ifMissing",
+      "engine": 1
+    }
+  ]
+}

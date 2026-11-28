@@ -1,0 +1,187 @@
+# ARMA 3 — dedicated server; migration target for the existing platform game.
+# Legacy sources: ipsd game/arma3_server.go + game/base_arma3.go, arma3/entrypoint.sh, api seeds.
+# Setting keys, defaults and the data layout match the production game so that existing servers
+# keep their values, profiles and missions.
+# STATUS: validated (boot-test risks: host Steam login, steamclient.so, mod pipeline in the start shell)
+#
+# The dedicated server (app 233780) is only downloadable with a Steam account that owns ARMA 3, so the
+# install and the workshop use the host login. Host-login definitions cannot have script stages, which
+# is why the production mod pipeline (lowercase file names, key extraction) runs in the start shell.
+apiVersion: 1
+
+short: arma3
+name: ARMA 3
+steamAppId: 107410
+tags: [fps, tactical, simulation, multiplayer, moddable, pvp]
+
+sources:
+  - kind: manual
+
+run:
+  # Own image (Ubuntu with the 32/64-bit runtime libraries and perl rename); only the server binary
+  # is executed, the old entrypoint (steamcmd on every start) is not used.
+  image: ipshosting/game-arma3:v3
+  dataPath: /home/ips-hosting
+  env:
+    USE_X64: '{{ .SettingBool "useX64" | boolInt }}'
+    GAME_PORT: '{{ (.Port "game").Container }}'
+    PROFILE: '{{ .Setting "profileName" }}'
+    BASIC_CFG: '{{ .Setting "basicConfig" }}'
+    SERVER_CFG: '{{ .Setting "config" }}'
+    AUTO_INIT: '{{ .SettingBool "autoInit" | boolInt }}'
+    LOAD_MISSION_TO_MEMORY: '{{ .SettingBool "loadMissionToMemory" | boolInt }}'
+    EXTRACT_MOD_KEYS: '{{ .SettingBool "extractModKeys" | boolInt }}'
+    LIMIT_FPS: '{{ .Setting "limitFPS" }}'
+    # Same mapping as production: creator DLCs are passed as they are, every other entry (folder name
+    # or workshop id) becomes mods/<lowercase name with underscores>.
+    MODS: >-
+      {{ range $i, $m := .SettingList "mods" }}{{ if $i }};{{ end }}{{ if or (eq $m "ws") (eq $m "csla") (eq $m "vn") (eq $m "gm") (eq $m "spe") (eq $m "rf") (eq $m "ef") }}{{ $m }}{{ else }}mods/{{ $m | replace " " "_" | lower }}{{ end }}{{ end }}
+    SERVER_MODS: >-
+      {{ range $i, $m := .SettingList "serverMods" }}{{ if $i }};{{ end }}{{ if or (eq $m "ws") (eq $m "csla") (eq $m "vn") (eq $m "gm") (eq $m "spe") (eq $m "rf") (eq $m "ef") }}{{ $m }}{{ else }}mods/{{ $m | replace " " "_" | lower }}{{ end }}{{ end }}
+  shell: |
+    mkdir -p mods keys
+    # Linux servers need lowercase mod files (https://community.bistudio.com/wiki/Arma_3_Dedicated_Server#Case_sensitivity_.26_Mods).
+    find -L mods -depth -exec rename -f 's/(.*)\/([^\/]*)/$1\/\L$2/' {} +
+    find mods -mindepth 1 -maxdepth 1 -type d -exec rename -f 's/\s/_/g' {} +
+    if [ "$EXTRACT_MOD_KEYS" = "1" ]; then
+      find -L mods -type f -name '*.bikey' -exec cp -f {} keys/ \;
+    fi
+    BIN=./arma3server
+    if [ "$USE_X64" = "1" ]; then BIN=./arma3server_x64; fi
+    set -- -ip=0.0.0.0 -port="$GAME_PORT" -name="$PROFILE" -cfg="$BASIC_CFG" -config="$SERVER_CFG" \
+      -bepath="$HOME/battleye" -mod="$MODS" -serverMod="$SERVER_MODS" -limitFPS="$LIMIT_FPS"
+    if [ "$AUTO_INIT" = "1" ]; then set -- "$@" -autoInit; fi
+    if [ "$LOAD_MISSION_TO_MEMORY" = "1" ]; then set -- "$@" -loadMissionToMemory; fi
+    exec "$BIN" "$@"
+  # The server does not read stdin (production: console commands disabled).
+  console:
+    via: none
+  stop:
+    via: signal
+    signal: SIGINT
+    timeoutSeconds: 20
+  ready:
+    pattern: 'Host identity created'
+
+install:
+  - kind: steamcmd
+    appId: 233780
+    login: host
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # Steamworks SDK redistributable: provides steamclient.so for ~/.steam/sdk64 and sdk32 like the
+  # production post_update (which copied the steamcmd client libraries). Existing servers keep
+  # their copied files (ips-init never replaces a regular file).
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
+    steamSdk: true
+
+# Numeric entries of mods/serverMods are workshop item ids of ARMA 3 (107410), downloaded with the host
+# login into mods/<id>, exactly the path the -mod argument above references.
+# TODO(M4): production keeps the items in Steam/steamapps/workshop/content/107410/<id> with symlinks
+# mods/<id>; the workshop engine must replace those symlinks (or the migration removes them), skip
+# non-numeric entries (folder names, creator DLCs), retry big items (production: 5 attempts) and remove
+# items that are no longer listed.
+workshop:
+  settings: [mods, serverMods]
+  appId: 107410
+  login: host
+  dir: mods
+
+query:
+  protocol: a2s
+  port: query
+
+# Production port rows (api seed ids 5–9). TODO(M4): production identifiers are `VON` and `battlEye`;
+# v1 identifiers are lowercase, the migration renames the rows (ipsd reads only game and query).
+ports:
+  - { identifier: game,     protocol: UDP, default: 2302, group: 0 }
+  - { identifier: query,    protocol: UDP, default: 2303, group: 0 }
+  - { identifier: steam,    protocol: UDP, default: 2304, group: 0 }
+  - { identifier: von,      protocol: UDP, default: 2305, group: 0 }
+  - { identifier: battleye, protocol: UDP, default: 2306, group: 0 }
+
+settings:
+  - key: basicConfig
+    name: { de: Basic-Config-Datei, en: Basic config file }
+    description: Der Name der Basic Config Datei.
+    type: STRING
+    default: basic.cfg
+    validation: { required: true, minLength: 1, maxLength: 255 }
+  - key: config
+    name: { de: Config-Datei, en: Server config file }
+    description: Der Name der Config Datei.
+    type: STRING
+    default: server.cfg
+    validation: { required: true, minLength: 1, maxLength: 255 }
+  - key: profileName
+    name: { de: Profilname, en: Profile name }
+    description: Der Name des Profils, das vom Server geladen wird.
+    type: STRING
+    default: server
+    validation: { required: true, minLength: 1, maxLength: 255 }
+  - key: limitFPS
+    name: { de: FPS limitieren, en: FPS limit }
+    description: Limitiert die FPS des Servers. Muss zwischen 5 und 1000 FPS liegen.
+    type: NUMBER
+    default: '50'
+    category: performance
+    validation: { required: true, integer: true, min: 5, max: 1000 }
+  - key: autoInit
+    name: Auto Init
+    description: Dadurch wird die Mission direkt nach dem Starten des Servers initialisiert. In der server.cfg muss der Parameter Persistent=1 gesetzt sein und es dürfen keine Missionsparameter verwendet werden.
+    type: BOOLEAN
+    default: '0'
+  - key: loadMissionToMemory
+    name: { de: Mission in Arbeitsspeicher laden, en: Load mission to memory }
+    description: Lädt die Mission in den Arbeitsspeicher, sobald der erste Client sie herunterlädt. Weitere Clients bekommen sie dann ohne zusätzliche CPU-Last, der Arbeitsspeicherbedarf steigt etwas.
+    type: BOOLEAN
+    default: '0'
+    category: performance
+  - key: useX64
+    name: { de: 64-Bit-Version nutzen, en: Use 64-bit server }
+    description: Wenn aktiviert, wird die 64 Bit Version des ARMA 3 Servers genutzt, welche in Version 2.0 hinzugefügt wurde.
+    type: BOOLEAN
+    default: '1'
+  - key: mods
+    name: Mods
+    description: Die Mods, welche vom Server und von allen Clients geladen werden sollen. Eigene Mods liegen im Ordner /mods, hier wird der Name des Mod-Ordners (z. B. @ace) eingetragen. Zahlen werden als Steam-Workshop-IDs interpretiert und automatisch heruntergeladen und aktuell gehalten.
+    type: STRINGLIST
+    category: mods
+  - key: serverMods
+    name: Server-Mods
+    description: Die Mods, welche nur vom Server geladen werden sollen. Eigene Mods liegen im Ordner /mods, hier wird der Name des Mod-Ordners (z. B. @myservermod) eingetragen. Zahlen werden als Steam-Workshop-IDs interpretiert und automatisch heruntergeladen und aktuell gehalten.
+    type: STRINGLIST
+    category: mods
+  - key: extractModKeys
+    name: { de: Mod-Keys extrahieren, en: Extract mod keys }
+    description: Ob die Keys (.bikey) von Mods automatisch extrahiert und im keys Ordner abgelegt werden sollen.
+    type: BOOLEAN
+    default: '1'
+    category: mods
+  - key: betaBranch
+    name: Beta-Branch
+    description: Name der Beta Branch, auf der der Server laufen soll (Liste unter https://steamdb.info/app/233780/depots/). Beim Wechsel können Server-Dateien überschrieben werden und eventuell können nur Spieler derselben Branch beitreten.
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: Beta-Passwort
+    description: Manche Beta Branches sind durch ein Passwort geschützt, welches hier angegeben werden kann.
+    type: HIDDENSTRING
+    category: steamBeta
+
+protectedFiles:
+  - { path: /arma3server, readOnly: true }
+  - { path: /arma3server_x64, readOnly: true }
+
+# Base game content and old workshop downloads are restored by steamcmd.
+backupIgnore:
+  - /addons/**
+  - /Steam/steamapps/workshop/**
+  - /steamworks/**
+
+requirements:
+  minCpuThreads: 2
+  minRam: 4096
+  minDiskspace: 20

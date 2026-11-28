@@ -1,0 +1,244 @@
+# Counter-Strike: Global Offensive (legacy) — CS:GO legacy server (app 740); migration target for the existing platform game.
+# Legacy sources: ipsd game/csgo.go (env, stop command, query), csgo/entrypoint.sh (start command,
+# install fixes) and the api seeds (settings, ports, files). Setting keys, defaults, ports and the
+# data layout match production.
+# STATUS: boot-tested (2026-11-28, game2), with an installer stand-in; production needs the M3 installer image
+# (script stage for the Steam client libraries)
+#
+# New servers should use games/cs2 (app 730, own keys and data layout); existing CS:GO servers
+# move there by switching the game.
+#
+# Deliberate fixes against production (start command only, no data changes):
+# - +mapgroup gets the mapgroup setting (production passed the map name).
+# - A numeric map is a workshop id: it is passed as +workshop_start_map instead of +map
+#   (production set +workshop_start_map for non-numeric maps, i.e. inverted).
+apiVersion: 1
+
+short: csgo
+name: 'Counter-Strike: Global Offensive'
+steamAppId: 730
+tags: [action, fps, multiplayer, pvp, tactical]
+
+sources:
+  - kind: manual
+
+run:
+  # The production image provides the 32-bit runtime libraries srcds needs. Its entrypoint is
+  # not used: it runs steamcmd on every start without a command.
+  image: ipshosting/game-csgo:v3
+  dataPath: /home/ips-hosting
+  exec:
+    - ./srcds_run
+    - -game
+    - csgo
+    - -ip
+    - 0.0.0.0
+    - -port
+    - '{{ (.Port "game").Container }}'
+    - -clientport
+    - '{{ (.Port "client").Container }}'
+    - +tv_port
+    - '{{ (.Port "tv").Container }}'
+    - -strictportbind
+    - -console
+    - -usercon
+    - -maxplayers_override
+    - '{{ .Setting "slots" }}'
+    - -tickrate
+    - '{{ .Setting "tickrate" }}'
+    - +game_type
+    - '{{ .Setting "game_type" }}'
+    - +game_mode
+    - '{{ .Setting "game_mode" }}'
+    - arg: +mapgroup
+      value: '{{ .Setting "mapgroup" }}'
+    - arg: +map
+      value: '{{ .Setting "map" }}'
+      when: { not: { setting: map, matches: '^[0-9]+$' } }
+    - arg: +workshop_start_map
+      value: '{{ .Setting "map" }}'
+      when: { setting: map, matches: '^[0-9]+$' }
+    - arg: +host_workshop_collection
+      value: '{{ .Setting "host_workshop_collection" }}'
+    - arg: -authkey
+      value: '{{ .Setting "authkey" }}'
+    - arg: +sv_setsteamaccount
+      value: '{{ .Setting "gslt" }}'
+    - -nobreakpad
+    - arg: -insecure
+      when: { setting: insecure, truthy: true }
+    - arg: -nobots
+      when: { setting: nobots, truthy: true }
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: quit
+    timeoutSeconds: 10
+  ready:
+    pattern: 'Connection to Steam servers successful'
+
+install:
+  - kind: steamcmd
+    appId: 740
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # post_update() of the production image: copy the Steam client libraries from steamcmd once.
+  - kind: script
+    shell: |
+      set -eu
+      cd "$IPS_DATA_PATH"
+      for bits in 32 64; do
+        if [ ! -f ".steam/sdk$bits/steamclient.so" ]; then
+          mkdir -p ".steam/sdk$bits"
+          cp "$STEAMCMD_DIR/linux$bits/steamclient.so" ".steam/sdk$bits/steamclient.so"
+        fi
+      done
+      # The bundled libgcc_s is older than the one the libstdc++ of the image (Ubuntu 24.04)
+      # needs: srcds fails with "version GCC_7.0.0 not found". Every update restores it.
+      rm -f bin/libgcc_s.so.1
+
+hooks:
+  # The remaining fixes of post_update(), applied after every install, update and validate.
+  postInstall:
+    # Error parsing BotProfile.db - unknown attribute 'Rank'.
+    - replace:
+        path: csgo/botprofile.db
+        pattern: '(?m)^[ \t]*Rank'
+        replacement: "\t// Rank"
+    # Unknown command "cl_bobamt_vert" and more: default.cfg is a client config.
+    - replace:
+        path: csgo/cfg/valve.rc
+        pattern: '(?m)^[ \t]*exec[ \t]*default\.cfg'
+        replacement: '// exec default.cfg'
+    # exec: couldn't exec joystick.cfg (the file does not exist on the server).
+    - replace:
+        path: csgo/cfg/valve.rc
+        pattern: '(?m)^[ \t]*exec[ \t]*joystick\.cfg'
+        replacement: '// exec joystick.cfg'
+
+query:
+  protocol: a2s
+  port: game
+
+ports:
+  - { identifier: game,   protocol: UDP, default: 27015, group: 0 }
+  - { identifier: rcon,   protocol: TCP, default: 27015, group: 0 }
+  - { identifier: client, protocol: TCP, default: 27005, group: 1 }
+  - { identifier: tv,     protocol: UDP, default: 27020, group: 2 }
+
+settings:
+  - key: slots
+    name: Slots
+    description: Die Slots bestimmen, wie viele Spieler gleichzeitig auf dem Server spielen können.
+    type: NUMBER
+    default: '10'
+    validation: { required: true, integer: true, min: 1, max: 128 }
+  - key: tickrate
+    name: Tickrate
+    description: Die Tickrate bestimmt, wie oft der Server pro Sekunde Daten berechnet. Ein höherer Wert sorgt für ein flüssigeres Spielerlebnis, braucht aber auch mehr Leistung.
+    type: NUMBERENUM
+    default: '66'
+    values:
+      - { value: '8' }
+      - { value: '16' }
+      - { value: '33' }
+      - { value: '66' }
+      - { value: '128' }
+  - key: gslt
+    name: Game Server Login Token
+    description: Ohne Token können Spieler nur über das lokale Netzwerk beitreten. Token erstellen unter https://steamcommunity.com/dev/managegameservers (App-ID 730).
+    type: HIDDENSTRING
+    validation: { pattern: '[A-Za-z0-9]{32}' }
+  - key: insecure
+    name: Valve Anti-Cheat deaktivieren
+    description: Deaktiviert den Valve Anti-Cheat.
+    type: BOOLEAN
+    default: '0'
+    category: advanced
+  - key: nobots
+    name: Bots deaktivieren
+    description: Deaktiviert die Möglichkeit, Bots zu spawnen.
+    type: BOOLEAN
+    default: '0'
+    category: advanced
+  - key: game_type
+    name: Spieltyp
+    description: 'Der Spieltyp des Servers: 0 = Classic, 1 = Arsenal. Hängt eng mit dem Spielmodus zusammen.'
+    type: NUMBER
+    default: '0'
+    category: gameplay
+    validation: { required: true, integer: true, min: 0 }
+  - key: game_mode
+    name: Spielmodus
+    description: 'Hängt vom Spieltyp ab. Spieltyp 0: 0 = Casual, 1 = Competitive, 2 = Wingman, 6 = Danger Zone. Spieltyp 1: 0 = Arms Race, 1 = Demolition.'
+    type: NUMBER
+    default: '0'
+    category: gameplay
+    validation: { required: true, integer: true, min: 0 }
+  - key: map
+    name: Startkarte
+    description: Die Karte, mit der der Server startet (z. B. de_dust2). Eine Zahl wird als Workshop-ID interpretiert und die Karte aus dem Workshop geladen.
+    type: STRING
+    default: de_dust2
+    category: gameplay
+    validation: { required: true, minLength: 1, maxLength: 255 }
+  - key: mapgroup
+    name: Mapgruppe
+    description: Die Mapgruppe des Servers (z. B. mg_bomb, oder mg_de_dust2 für nur eine Karte). Eigene Mapgruppen können in der gamemodes_server.txt angelegt werden. Kann leer bleiben, wenn eine Steam-Kollektion gesetzt ist.
+    type: STRING
+    default: mg_bomb
+    category: gameplay
+    validation: { maxLength: 255 }
+  - key: host_workshop_collection
+    name: Steam-Kollektion
+    description: Die ID der Steam-Workshop-Kollektion, die vom Server geladen werden soll.
+    type: NUMBER
+    category: mods
+    validation: { integer: true, min: 1 }
+  - key: authkey
+    name: Steam-Web-API-Schlüssel
+    description: Wird für Steam-Kollektionen und Workshop-Karten benötigt. Er kann unter https://steamcommunity.com/dev/apikey erstellt werden.
+    type: HIDDENSTRING
+    category: mods
+    validation: { pattern: '[A-Za-z0-9]{32}' }
+  - key: betaBranch
+    name: Beta-Branch
+    description: Falls der Server auf einer Beta Branch laufen soll, trage hier ihren Namen ein (Liste unter https://steamdb.info/app/740/depots/). Beim Wechsel können Server-Dateien überschrieben werden.
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: Beta-Passwort
+    description: Manche Beta Branches sind durch ein Passwort geschützt, welches hier angegeben werden kann.
+    type: HIDDENSTRING
+    category: steamBeta
+
+preconditions:
+  - check: { setting: gslt, notEquals: '' }
+    severity: warning
+    message: Ohne Game Server Login Token können Spieler nur über das lokale Netzwerk beitreten.
+  - check:
+      any:
+        - { all: [{ setting: host_workshop_collection, equals: '' }, { not: { setting: map, matches: '^[0-9]+$' } }] }
+        - { setting: authkey, notEquals: '' }
+    severity: warning
+    message: Für Steam-Kollektionen und Workshop-Karten wird ein Steam-Web-API-Schlüssel benötigt.
+
+protectedFiles:
+  - { path: /srcds_run, readOnly: true }
+  - { path: /srcds_linux, readOnly: true }
+
+# Production has no backup ignore list for CS:GO; these are re-downloadable server files.
+backupIgnore:
+  - /.steam
+  - /Steam
+  - /steamapps
+  - /bin
+  - /csgo/bin
+  - /csgo/*.vpk
+  - /srcds*
+
+requirements:
+  minCpuThreads: 2
+  minRam: 2048
+  minDiskspace: 40

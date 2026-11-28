@@ -1,0 +1,114 @@
+# Necesse — new game (dedicated server with bundled Java runtime), based on the Pelican egg.
+# STATUS: boot-tested (2026-11-27, game2)
+#
+# Server options are passed on the command line, which overrides cfg/server.cfg.
+apiVersion: 1
+
+short: necesse
+name: Necesse
+steamAppId: 1169040
+tags: [adventure, survival, building, crafting, co-op, sandbox]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:necesse/egg-necesse.json
+    license: MIT
+
+run:
+  image: ghcr.io/pelican-eggs/yolks:debian@sha256:f4e18fadc9b2f2d1a300bffee78e5b87cccde4544e512acc36a1d370c1340121
+  dataPath: /home/container
+  tmpfs: [/tmp]
+  exec:
+    - ./jre/bin/java
+    - -Xms128M
+    # Heap: 85 % of the plan RAM, the rest is JVM and native overhead.
+    - '-Xmx{{ div (mul .Server.RamMB 85) 100 }}M'
+    - -Dterminal.jline=false
+    - -Dterminal.ansi=true
+    - -jar
+    - Server.jar
+    - -localdir
+    - -nogui
+    - -world
+    - '{{ .Setting "worldName" }}'
+    - -port
+    - '{{ (.Port "game").Container }}'
+    - -slots
+    - '{{ .Setting "maxPlayers" }}'
+    - arg: -password
+      value: '{{ .Setting "password" }}'
+    - arg: -motd
+      value: '{{ .Setting "motd" }}'
+    - -pausewhenempty
+    - '{{ .SettingBool "pauseWhenEmpty" | boolInt }}'
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: stop          # saves the world, then quits
+    timeoutSeconds: 60
+  ready:
+    pattern: 'Type help for list of commands\.'
+
+install:
+  - kind: steamcmd
+    appId: 1169370
+    beta: { branchSetting: betaBranch }
+    steamSdk: true
+
+ports:
+  - { identifier: game, protocol: UDP, default: 14159, group: 0 }
+
+settings:
+  - key: worldName
+    name: { de: Weltname, en: World name }
+    description:
+      de: Spielstand in saves/. Ein neuer Name erzeugt beim Start eine neue Welt.
+      en: Save in saves/. A new name creates a new world at start.
+    type: STRING
+    default: Save1
+    validation: { required: true, minLength: 1, maxLength: 64, pattern: '[A-Za-z0-9 _-]+' }
+    category: world
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '10'
+    validation: { required: true, integer: true, min: 1, max: 250 }
+  - key: password
+    name: { de: Server-Passwort, en: Server password }
+    description:
+      de: Leer = kein Passwort.
+      en: Empty means no password.
+    type: HIDDENSTRING
+    validation: { maxLength: 32 }
+  - key: motd
+    name: { de: Begrüßungsnachricht, en: Message of the day }
+    type: STRING
+    validation: { maxLength: 128 }
+  - key: pauseWhenEmpty
+    name: { de: Pause ohne Spieler, en: Pause when empty }
+    type: BOOLEAN
+    default: '1'
+    category: gameplay
+  - key: betaBranch
+    name: Beta-Branch
+    description:
+      de: Name der Beta Branch, auf der der Server laufen soll. Beim Wechsel können Server-Dateien überschrieben werden.
+      en: Name of the beta branch the server runs on. Switching may overwrite server files.
+    type: STRING
+    default: public
+    category: steamBeta
+
+protectedFiles:
+  - { path: /Server.jar, readOnly: true }
+  - { path: /jre/**, readOnly: true }
+
+backupIgnore:
+  - jre/**
+  - '*.jar'
+  - steamapps/**
+
+requirements:
+  minCpuThreads: 1
+  minRam: 1024
+  minDiskspace: 2

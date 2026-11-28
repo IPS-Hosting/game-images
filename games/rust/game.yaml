@@ -1,0 +1,301 @@
+# Rust — migration target for the existing platform game.
+# Legacy sources: ipsd game/rust.go (env, setting keys, stop command, query), rust/entrypoint.sh
+# (start command, install) and the api seeds (defaults, ports, files). Setting keys follow ipsd,
+# which reads camelCase keys; the seeds still list some of them in lower case.
+# STATUS: boot-tested (2026-11-28, game2)
+#
+# The server identity stays "ips-hosting", so saves remain in server/ips-hosting.
+#
+# Deliberate fixes against production (start command only):
+# - Rust+ disabled: +app.port -1 (production passed "1-").
+# - +server.bansServerTimeout (production passed +bansServerTimeout without the prefix).
+# - Every value is exactly one argument; production built the command with eval, so values with
+#   quotes broke the start.
+apiVersion: 1
+
+short: rust
+name: Rust
+steamAppId: 252490
+tags: [survival, open-world, pvp, crafting, building, multiplayer]
+
+sources:
+  - kind: manual
+
+run:
+  # Production image (32-bit runtime libraries, libsdl2). Its entrypoint is not used: it runs
+  # steamcmd on every start without a command.
+  image: ipshosting/game-rust:v4
+  dataPath: /home/ips-hosting
+  exec:
+    - ./RustDedicated
+    - +server.ip
+    - 0.0.0.0
+    - +server.port
+    - '{{ (.Port "game").Container }}'
+    - +server.queryport
+    - '{{ (.Port "query").Container }}'
+    - +server.tickrate
+    - '{{ .Setting "tickrate" }}'
+    - +server.hostname
+    - '{{ .Setting "hostname" }}'
+    - +server.description
+    - '{{ .Setting "description" }}'
+    - +server.url
+    - '{{ .Setting "url" }}'
+    - +server.headerimage
+    - '{{ .Setting "headerImage" }}'
+    - +server.logoimage
+    - '{{ .Setting "logoImage" }}'
+    - +server.identity
+    - ips-hosting
+    - +server.gamemode
+    - '{{ .Setting "gamemode" }}'
+    - +server.maxplayers
+    - '{{ .Setting "maxPlayers" }}'
+    - +server.saveinterval
+    - '{{ .Setting "saveInterval" }}'
+    # RCON only with a password: the server crashes when the password is empty.
+    - arg: +rcon.web
+      value: '{{ .SettingBool "rconWeb" | boolInt }}'
+      when: { setting: rconPassword, notEquals: '' }
+    - arg: +rcon.ip
+      value: 0.0.0.0
+      when: { setting: rconPassword, notEquals: '' }
+    - arg: +rcon.port
+      value: '{{ (.Port "rcon").Container }}'
+      when: { setting: rconPassword, notEquals: '' }
+    - arg: +rcon.password
+      value: '{{ .Setting "rconPassword" }}'
+    # Custom map (https://wiki.facepunch.com/rust/Hosting_a_custom_map) or a generated one.
+    - arg: +server.levelurl
+      value: '{{ .Setting "levelUrl" }}'
+    - arg: +server.level
+      value: '{{ .Setting "level" }}'
+      when: { setting: levelUrl, equals: '' }
+    - arg: +server.worldsize
+      value: '{{ .Setting "worldSize" }}'
+      when: { setting: levelUrl, equals: '' }
+    - arg: +server.seed
+      value: '{{ .Setting "seed" }}'
+      when: { setting: levelUrl, equals: '' }
+    - arg: +server.salt
+      value: '{{ .Setting "salt" }}'
+      when: { setting: levelUrl, equals: '' }
+    # Rust+ companion app (https://wiki.facepunch.com/rust/rust-companion-server).
+    - arg: '{{ if and (not (.SettingBool "disableRustPlus")) (ne .Server.IPv4 "") }}+app.listenip{{ end }}'
+      value: 0.0.0.0
+    - +app.port
+    - '{{ if and (not (.SettingBool "disableRustPlus")) (ne .Server.IPv4 "") }}{{ (.Port "app").Container }}{{ else }}-1{{ end }}'
+    - arg: '{{ if and (not (.SettingBool "disableRustPlus")) (ne .Server.IPv4 "") }}+app.publicip{{ end }}'
+      value: '{{ .Server.IPv4 }}'
+    # Centralized banning (https://wiki.facepunch.com/rust/centralized-banning).
+    - arg: +server.bansServerEndpoint
+      value: '{{ .Setting "centralizedBanningEndpoint" }}'
+    - arg: +server.bansServerFailureMode
+      value: '{{ .Setting "centralizedBanningFailureMode" }}'
+      when: { setting: centralizedBanningEndpoint, notEquals: '' }
+    - arg: +server.bansServerTimeout
+      value: '{{ .Setting "centralizedBanningTimeout" }}'
+      when: { setting: centralizedBanningEndpoint, notEquals: '' }
+    # Server browser tags (https://wiki.facepunch.com/rust/server-browser-tags).
+    - arg: +server.tags
+      value: '{{ .Setting "tags" }}'
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: quit
+    # Production waited 10 s; the save on quit takes longer on large maps.
+    timeoutSeconds: 60
+  ready:
+    pattern: 'Server startup complete'
+
+install:
+  - kind: steamcmd
+    appId: 258550
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # Steamworks SDK redistributable: provides steamclient.so for ~/.steam/sdk64 and sdk32 and
+  # replaces post_update() of the production image (copies of the steamcmd client libraries).
+  # App 258550 has no linux64/ directory (its 64-bit library is at the top level). Existing
+  # servers keep their copies: ips-init leaves regular files alone.
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
+    steamSdk: true
+
+query:
+  # Deliberate fix: ipsd queried the game port; Rust answers A2S on server.queryport.
+  protocol: a2s
+  port: query
+
+ports:
+  - { identifier: game,  protocol: UDP, default: 28015, group: 0 }
+  - { identifier: rcon,  protocol: TCP, default: 28015, group: 0 }
+  # TODO(M4): ipsd reads this port, the api seeds do not list it; check the production rows.
+  - { identifier: query, protocol: UDP, default: 28016, group: 0 }
+  - { identifier: app,   protocol: TCP, default: 28082, group: 1 }
+
+settings:
+  - key: hostname
+    name: Servername
+    description: Der Name des Servers, wie er in der Serverliste angezeigt wird.
+    type: STRING
+    default: A Rust server
+    validation: { required: true, minLength: 1, maxLength: 255 }
+  - key: description
+    name: Beschreibung
+    description: Die Beschreibung des Servers, die beim Verbinden angezeigt wird.
+    type: MULTILINESTRING
+    default: Powered by IPS Hosting
+    validation: { required: true, minLength: 1, maxLength: 255 }
+  - key: url
+    name: URL
+    description: Die Webseite des Servers.
+    type: STRING
+    default: https://www.ips-hosting.com
+    validation: { maxLength: 255, pattern: 'https?://\S+' }
+  - key: headerImage
+    name: Header-Bild
+    description: URL eines Bildes, das als Header in der Serverliste angezeigt wird.
+    type: STRING
+    validation: { maxLength: 255, pattern: 'https?://\S+' }
+  - key: logoImage
+    name: Logo
+    description: URL eines Bildes, das als Logo in der Serverliste angezeigt wird.
+    type: STRING
+    validation: { maxLength: 255, pattern: 'https?://\S+' }
+  - key: gamemode
+    name: Spielmodus
+    description: Der Spielmodus des Servers (z. B. vanilla, softcore, hardcore).
+    type: STRING
+    default: vanilla
+    category: gameplay
+    validation: { required: true, minLength: 1, maxLength: 255 }
+  - key: maxPlayers
+    name: Slots
+    description: Die maximale Anzahl Spieler, die dem Server beitreten können.
+    type: NUMBER
+    default: '25'
+    validation: { required: true, integer: true, min: 1, max: 500 }
+  - key: tickrate
+    name: Tickrate
+    description: Die Tickrate des Servers. Muss zwischen 15 und 100 liegen.
+    type: NUMBER
+    default: '30'
+    category: performance
+    validation: { required: true, integer: true, min: 15, max: 100 }
+  - key: saveInterval
+    name: Speicherintervall (Sekunden)
+    description: Wie oft der Server die Welt speichert.
+    type: NUMBER
+    default: '300'
+    category: performance
+    validation: { required: true, integer: true, min: 30, max: 600 }
+  - key: tags
+    name: Tags
+    description: Kommagetrennte Tags für die Serverliste, z. B. monthly,vanilla,eu (https://wiki.facepunch.com/rust/server-browser-tags).
+    type: STRING
+    validation: { maxLength: 255, pattern: '\S*' }
+  - key: level
+    name: Karte
+    description: Die Karte, die der Server lädt. Wird ignoriert, wenn eine eigene Karte (URL) gesetzt ist.
+    type: STRINGENUM
+    default: Procedural Map
+    category: world
+    values:
+      - { value: Procedural Map }
+      - { value: Barren }
+      - { value: Craggy Island }
+      - { value: Hapis }
+      - { value: Savas Island }
+  - key: worldSize
+    name: Weltgröße
+    description: Die Kartengröße in Metern (nur bei generierten Karten).
+    type: NUMBER
+    default: '3000'
+    category: world
+    validation: { required: true, integer: true, min: 1000, max: 6000 }
+  - key: seed
+    name: Seed
+    description: Wird zum Generieren der Karte verwendet. Leer lassen für einen zufälligen Seed.
+    type: NUMBER
+    category: world
+    validation: { integer: true, min: 1, max: 2147483647 }
+  - key: salt
+    name: Salt
+    description: Wird zum Generieren von Ressourcen-Spawns und mehr verwendet.
+    type: NUMBER
+    category: world
+    validation: { integer: true, min: 1, max: 2147483647 }
+  - key: levelUrl
+    name: Eigene Karte (URL)
+    description: Download-URL einer eigenen Karte (.map). Ersetzt Karte, Weltgröße, Seed und Salt.
+    type: STRING
+    category: world
+    validation: { maxLength: 1024, pattern: 'https?://\S+' }
+  - key: rconPassword
+    name: RCON-Passwort
+    description: Leer lassen, um RCON zu deaktivieren.
+    type: HIDDENSTRING
+    category: admin
+    validation: { maxLength: 64 }
+  - key: rconWeb
+    name: RCON Web
+    description: Ob RCON über WebSocket (rcon.web) statt über das Source-RCON-Protokoll laufen soll.
+    type: BOOLEAN
+    default: '1'
+    category: admin
+  - key: disableRustPlus
+    name: Rust+ deaktivieren
+    description: Deaktiviert die Rust+ Companion App.
+    type: BOOLEAN
+    default: '0'
+    category: advanced
+  - key: centralizedBanningEndpoint
+    name: Centralized Banning Endpoint
+    description: URL eines Centralized-Banning-Dienstes (https://wiki.facepunch.com/rust/centralized-banning).
+    type: STRING
+    category: admin
+    validation: { maxLength: 1024, pattern: 'https?://\S+' }
+  - key: centralizedBanningFailureMode
+    name: Centralized Banning Fehlermodus
+    description: Verhalten, wenn der Dienst nicht erreichbar ist (0 = Spieler zulassen, 1 = Spieler abweisen).
+    type: NUMBERENUM
+    default: '0'
+    category: admin
+    values:
+      - { value: '0', label: Zulassen }
+      - { value: '1', label: Abweisen }
+  - key: centralizedBanningTimeout
+    name: Centralized Banning Timeout (Sekunden)
+    type: NUMBER
+    default: '5'
+    category: admin
+    validation: { integer: true, min: 1, max: 60 }
+  - key: betaBranch
+    name: Beta-Branch
+    description: Falls der Server auf einer Beta Branch laufen soll, trage hier ihren Namen ein (Liste unter https://steamdb.info/app/258550/depots/). Beim Wechsel können Server-Dateien überschrieben werden.
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: Beta-Passwort
+    description: Manche Beta Branches sind durch ein Passwort geschützt, welches hier angegeben werden kann.
+    type: HIDDENSTRING
+    category: steamBeta
+
+protectedFiles:
+  - { path: /RustDedicated, readOnly: true }
+
+# Re-downloadable game files. RustDedicated_Data stays in the backup: Oxide/Carbon patch it.
+backupIgnore:
+  - /.steam
+  - /Steam
+  - /steamapps
+  - /Bundles
+  - /steamworks
+
+requirements:
+  minCpuThreads: 2
+  minRam: 8192
+  minDiskspace: 25

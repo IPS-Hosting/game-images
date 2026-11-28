@@ -1,0 +1,236 @@
+# 7 Days to Die — new game, derived from the Pelican egg (games-steamcmd 7_days_to_die).
+# STATUS: boot-tested (2026-11-27, game2)
+#
+# The egg attaches a telnet client to the admin console; here the start shell forwards the
+# panel console (stdin) to the telnet port, which stays loopback-only (no telnet password).
+apiVersion: 1
+
+short: 7dtd
+name: 7 Days to Die
+steamAppId: 251570
+tags: [survival, zombies, crafting, building, open-world, co-op]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:7_days_to_die/egg-7-days-to-die.json
+    license: MIT
+
+run:
+  image: ghcr.io/parkervcp/steamcmd:debian@sha256:c59cff8cd1202c8f283b8b36344166a9fc16e3f781aa1be7d10187cd9d7566d8
+  dataPath: /home/container
+  env:
+    LD_LIBRARY_PATH: .
+  # The server logs to stdout; the admin console is the telnet port 8081 inside the
+  # container (bound to 127.0.0.1 because TelnetPassword is empty, never published).
+  # Panel console lines are forwarded there, so "shutdown" works as stop command.
+  shell: |
+    ./7DaysToDieServer.x86_64 -configfile=sdtdserver.xml -quit -batchmode -nographics -dedicated \
+      -logfile /dev/stdout &
+    server=$!
+    trap 'kill -TERM "$server" 2>/dev/null' TERM INT
+    exec 3<&0
+    until nc -z 127.0.0.1 8081 2>/dev/null; do
+      kill -0 "$server" 2>/dev/null || break
+      sleep 2
+    done
+    nc 127.0.0.1 8081 <&3 >/dev/null 2>&1 &
+    status=0
+    wait "$server" || status=$?
+    while kill -0 "$server" 2>/dev/null; do wait "$server" || status=$?; done
+    exit "$status"
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: shutdown
+    timeoutSeconds: 120
+  ready:
+    pattern: 'StartGame done'
+
+install:
+  - kind: steamcmd
+    appId: 294420
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+  # Steamworks SDK redistributable: provides linux64/steamclient.so for ~/.steam/sdk64.
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
+    steamSdk: true
+
+# The server answers Steam (A2S) queries on the game port; 26901 is a network port without query
+# (boot test 2026-11-27: connection refused there).
+query:
+  protocol: a2s
+  port: game
+
+ports:
+  - { identifier: game,     protocol: UDP, default: 26900, group: 0 }
+  - { identifier: game_tcp, protocol: TCP, default: 26900, group: 0 }
+  - { identifier: query,    protocol: UDP, default: 26901, group: 0 }
+  - { identifier: net,      protocol: UDP, default: 26902, group: 0 }
+
+settings:
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Mein 7 Days to Die Server
+    validation: { required: true, minLength: 3, maxLength: 64, pattern: '[^"<>&]+' }
+  - key: description
+    name: { de: Beschreibung, en: Description }
+    type: STRING
+    default: Ein 7 Days to Die Server von ips-hosting.com
+    validation: { maxLength: 200, pattern: '[^"<>&]*' }
+  - key: password
+    name: { de: Server-Passwort, en: Server password }
+    description: { de: Leer lassen für einen öffentlichen Server., en: Leave empty for a public server. }
+    type: HIDDENSTRING
+    validation: { maxLength: 64, pattern: '[^"<>&]*' }
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '8'
+    validation: { integer: true, min: 1, max: 32 }
+  - key: visibility
+    name: { de: Sichtbarkeit, en: Visibility }
+    type: NUMBERENUM
+    default: '2'
+    category: network
+    values:
+      - { value: '2', label: { de: Öffentlich, en: Public } }
+      - { value: '1', label: { de: Nur Freunde, en: Friends only } }
+      - { value: '0', label: { de: Nicht gelistet, en: Not listed } }
+  - key: eac
+    name: { de: Easy Anti-Cheat, en: Easy Anti-Cheat }
+    description: { de: Für viele Mods (z. B. mit DLLs) muss EAC deaktiviert werden., en: Many mods (e.g. with DLLs) require EAC to be disabled. }
+    type: BOOLEAN
+    default: '1'
+    category: network
+  - key: gameWorld
+    name: { de: Welt, en: World }
+    description: { de: 'Navezgane ist die feste Karte, RWG erzeugt eine zufällige Welt aus Seed und Größe.', en: 'Navezgane is the fixed map; RWG generates a random world from seed and size.' }
+    type: STRINGENUM
+    default: Navezgane
+    category: world
+    values:
+      - { value: Navezgane }
+      - { value: RWG, label: { de: Zufallswelt (RWG), en: Random world (RWG) } }
+      - { value: PREGEN06k01 }
+      - { value: PREGEN06k02 }
+      - { value: PREGEN08k01 }
+      - { value: PREGEN08k02 }
+      - { value: PREGEN10k01 }
+      - { value: PREGEN10k02 }
+  - key: worldGenSeed
+    name: { de: Seed der Zufallswelt, en: Random world seed }
+    type: STRING
+    default: ips-hosting
+    category: world
+    visibleWhen: { setting: gameWorld, equals: RWG }
+    validation: { required: true, maxLength: 64, pattern: '[A-Za-z0-9 _-]+' }
+  - key: worldGenSize
+    name: { de: Größe der Zufallswelt, en: Random world size }
+    description: { de: Größere Welten brauchen deutlich mehr Arbeitsspeicher und Zeit beim ersten Start., en: Larger worlds need considerably more memory and time on first start. }
+    type: NUMBERENUM
+    default: '6144'
+    category: world
+    visibleWhen: { setting: gameWorld, equals: RWG }
+    values:
+      - { value: '6144', label: 6 km }
+      - { value: '8192', label: 8 km }
+      - { value: '10240', label: 10 km }
+  - key: saveName
+    name: { de: Spielstand, en: Save name }
+    description: { de: Name des Spielstands. Ein neuer Name beginnt eine neue Welt., en: Name of the save game. A new name starts a new world. }
+    type: STRING
+    default: MyGame
+    category: world
+    validation: { required: true, maxLength: 64, pattern: '[A-Za-z0-9 _-]+' }
+  - key: difficulty
+    name: { de: Schwierigkeit, en: Difficulty }
+    type: NUMBERENUM
+    default: '1'
+    category: gameplay
+    values:
+      - { value: '0', label: { de: Wanderer, en: Scavenger } }
+      - { value: '1', label: { de: Abenteurer, en: Adventurer } }
+      - { value: '2', label: { de: Nomade, en: Nomad } }
+      - { value: '3', label: { de: Krieger, en: Warrior } }
+      - { value: '4', label: { de: Überlebenskünstler, en: Survivalist } }
+      - { value: '5', label: { de: Wahnsinnig, en: Insane } }
+  - key: bloodMoonFrequency
+    name: { de: Blutmond alle (Tage), en: Blood moon every (days) }
+    description: { de: 0 deaktiviert den Blutmond., en: 0 disables blood moons. }
+    type: NUMBER
+    default: '7'
+    category: gameplay
+    validation: { integer: true, min: 0, max: 365 }
+  - key: dayNightLength
+    name: { de: Länge eines Tages (Minuten), en: Day length (minutes) }
+    type: NUMBER
+    default: '60'
+    category: gameplay
+    validation: { integer: true, min: 10, max: 240 }
+  - key: playerKillingMode
+    name: { de: PvP, en: PvP }
+    type: NUMBERENUM
+    default: '3'
+    category: gameplay
+    values:
+      - { value: '0', label: { de: Kein PvP, en: No killing } }
+      - { value: '1', label: { de: Nur Verbündete, en: Kill allies only } }
+      - { value: '2', label: { de: Nur Fremde, en: Kill strangers only } }
+      - { value: '3', label: { de: Alle, en: Kill everyone } }
+  - key: betaBranch
+    name: Beta-Branch
+    description: { de: 'Steam-Branch, z. B. latest_experimental. Beim Wechsel können Server-Dateien überschrieben werden.', en: 'Steam branch, e.g. latest_experimental. Switching may overwrite server files.' }
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: { de: Beta-Passwort, en: Beta password }
+    type: HIDDENSTRING
+    category: steamBeta
+
+# The server ships serverconfig.xml, which updates overwrite. The managed copy keeps all other
+# options the customer changes; network and telnet options are enforced.
+config:
+  - path: sdtdserver.xml
+    format: xml
+    createFrom: serverconfig.xml
+    values:
+      'ServerSettings.property[name=ServerName]@value': '{{ .Setting "name" }}'
+      'ServerSettings.property[name=ServerDescription]@value': '{{ .Setting "description" }}'
+      'ServerSettings.property[name=ServerPassword]@value': '{{ .Setting "password" }}'
+      'ServerSettings.property[name=ServerMaxPlayerCount]@value': '{{ .Setting "maxPlayers" }}'
+      'ServerSettings.property[name=ServerVisibility]@value': '{{ .Setting "visibility" }}'
+      'ServerSettings.property[name=ServerPort]@value': '{{ (.Port "game").Container }}'
+      'ServerSettings.property[name=EACEnabled]@value': '{{ ternary "true" "false" (.SettingBool "eac") }}'
+      'ServerSettings.property[name=GameWorld]@value': '{{ .Setting "gameWorld" }}'
+      'ServerSettings.property[name=WorldGenSeed]@value': '{{ .Setting "worldGenSeed" }}'
+      'ServerSettings.property[name=WorldGenSize]@value': '{{ .Setting "worldGenSize" }}'
+      'ServerSettings.property[name=GameName]@value': '{{ .Setting "saveName" }}'
+      'ServerSettings.property[name=GameDifficulty]@value': '{{ .Setting "difficulty" }}'
+      'ServerSettings.property[name=BloodMoonFrequency]@value': '{{ .Setting "bloodMoonFrequency" }}'
+      'ServerSettings.property[name=DayNightLength]@value': '{{ .Setting "dayNightLength" }}'
+      'ServerSettings.property[name=PlayerKillingMode]@value': '{{ .Setting "playerKillingMode" }}'
+      'ServerSettings.property[name=TelnetEnabled]@value': 'true'
+      'ServerSettings.property[name=TelnetPort]@value': '8081'
+      'ServerSettings.property[name=TelnetPassword]@value': ''
+      'ServerSettings.property[name=WebDashboardEnabled]@value': 'false'
+      'ServerSettings.property[name=TerminalWindowEnabled]@value': 'false'
+
+protectedFiles:
+  - { path: /7DaysToDieServer.x86_64, readOnly: true }
+  - { path: /7DaysToDieServer_Data/**, readOnly: true }
+  - { path: /steamworks/**, readOnly: true }
+
+backupIgnore:
+  - 7DaysToDieServer_Data/**
+  - Data/**
+  - steamapps/**
+  - steamworks/**
+
+requirements:
+  minCpuThreads: 2
+  minRam: 8192
+  minDiskspace: 20

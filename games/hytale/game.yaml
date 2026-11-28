@@ -1,0 +1,179 @@
+# Hytale — migration target for the existing platform game.
+# Legacy sources:
+#   - ipsd game/hytale.go (image ipshosting/game-hytale:v1, JVM heap relative to box RAM,
+#     optional backup/owner/op flags, install via the image's install_update_game command,
+#     stop with /stop, persistent /etc/machine-id, query of the WebServer plugin)
+#   - game-images hytale/Dockerfile + hytale/entrypoint.sh (start command reimplemented below;
+#     the image's start function only builds the same java command line)
+# STATUS: not boot-tested: the installer needs a device login with a Hytale account (2026-11-27);
+# production needs the M3 installer
+#
+# TODO(M4): CurseForge mods need an engine feature; hytale stays on the legacy implementation
+#   until then. ipsd installs the mods enabled in the panel (setting cfMods, managed on the
+#   panel's CurseForge page) before every start: verified downloads into a stash, symlinks in
+#   mods/, removal of mods that were disabled.
+# TODO(M4): the query needs HTTP basic auth: ipsd writes a service account
+#   (mods/Nitrado_WebServer/provisioning/ipsd-query.serviceaccount.json, bcrypt hash of
+#   sha256(<server id>:<daemon secret>)) before every start and queries
+#   https://<ip>:<web>/Nitrado/Query with it (insecure, self-signed). The http query protocol
+#   has no credentials, so the query is "none" here.
+# TODO(M4): ipsd keeps the machine id in .machine-id in the data directory (part of backups).
+#   run.machineId creates a new id in the private directory, which changes the hardware UUID
+#   Hytale sees (encrypted auth persistence may need a new /auth login). The migration has to
+#   seed the engine's id from the existing .machine-id.
+# TODO(M4): validate sets FORCE_UPDATE=true in ipsd (re-download even when up to date); a
+#   script stage cannot tell install, update and validate apart.
+# TODO(M4): the api seeds have no rows for this game. Setting keys follow ipsd, ports follow
+#   the image (5520/udp game, 5523/tcp web = game + 3, the WebServer plugin default); verify
+#   identifiers, types, defaults, groups and static against the production rows.
+apiVersion: 1
+
+short: hytale
+name: Hytale
+tags: [survival, adventure, sandbox, building, crafting, moddable]
+
+sources:
+  - kind: manual
+
+run:
+  image: ipshosting/game-hytale:v1
+  dataPath: /home/ips-hosting
+  # Production binds a writable per-server /tmp and a stable /etc/machine-id into the container.
+  tmpfs: [/tmp]
+  machineId: true
+  exec:
+    - /opt/java/openjdk/bin/java
+    - -XX:AOTCache=./Server/HytaleServer.aot
+    # Memory: 30 % of the RAM (20 % from 10 GB) stays with the system and the JVM, the rest is
+    # heap; the initial heap is a third of it.
+    - >-
+      -Xms{{ $max := sub .Server.RamMB (int (mul (intf .Server.RamMB) (ternary 0.2 0.3 (ge .Server.RamMB 10240)))) }}{{ min $max (int (mul (intf $max) 0.3333)) }}M
+    - >-
+      -Xmx{{ sub .Server.RamMB (int (mul (intf .Server.RamMB) (ternary 0.2 0.3 (ge .Server.RamMB 10240)))) }}M
+    - -jar
+    - ./Server/HytaleServer.jar
+    - --bind
+    - '0.0.0.0:{{ (.Port "game").Container }}'
+    - --assets
+    - ./Assets.zip
+    - arg: --backup
+      when: { setting: backup, truthy: true }
+    - arg: --backup-dir
+      value: '{{ .Setting "backupDir" }}'
+    - arg: --backup-frequency
+      value: '{{ .Setting "backupFrequency" }}'
+    - arg: --backup-max-count
+      value: '{{ .Setting "backupMaxCount" }}'
+    - arg: --owner-name
+      value: '{{ .Setting "ownerName" }}'
+    - arg: --owner-uuid
+      value: '{{ .Setting "ownerUuid" }}'
+    - arg: --allow-op
+      when: { setting: allowOp, truthy: true }
+    - --disable-sentry
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: /stop
+    timeoutSeconds: 10
+  ready:
+    pattern: 'Hytale Server Booted!'
+
+# The image's install_update_game command installs/updates the Hytale downloader and the
+# server files of the selected patchline. On the first install the downloader asks for a
+# device login with a Hytale account (link in the install log). Default plugins are not
+# installed; plugins come from CurseForge mods.
+install:
+  - kind: script
+    image: ipshosting/game-hytale:v1
+    env:
+      PATCHLINE: '{{ .Setting "patchline" }}'
+      INSTALL_DEFAULT_PLUGINS: 'false'
+    shell: |
+      exec /bin/bash /ips-hosting/entrypoint.sh install_update_game
+
+query:
+  protocol: none
+
+ports:
+  - { identifier: game, protocol: UDP, default: 5520, group: 0 }
+  - { identifier: web,  protocol: TCP, default: 5523, group: 0 }
+
+settings:
+  - key: patchline
+    name: Patchline
+    description: >-
+      Die Patchline der Server-Dateien. Wird bei der nächsten Installation oder Aktualisierung
+      übernommen.
+    type: STRINGENUM
+    default: release
+    values:
+      - { value: release, label: Release }
+      - { value: pre-release, label: Pre-Release }
+  - key: ownerName
+    name: { de: Besitzername, en: Owner name }
+    description: Der Name des Server-Besitzers.
+    type: STRING
+    category: admin
+    validation: { maxLength: 64 }
+  - key: ownerUuid
+    name: { de: Besitzer-UUID, en: Owner UUID }
+    description: Die UUID des Hytale Accounts des Server-Besitzers.
+    type: STRING
+    category: admin
+    validation: { pattern: '[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}' }
+  - key: allowOp
+    name: { de: OP erlauben, en: Allow OP }
+    description: Erlaubt es Spielern, sich selbst zum Operator zu machen.
+    type: BOOLEAN
+    default: '0'
+    category: admin
+  - key: backup
+    name: { de: Automatische Backups, en: Automatic backups }
+    description: Ob der Server selbst regelmäßig Backups der Welt erstellt.
+    type: BOOLEAN
+    default: '0'
+    category: world
+  - key: backupDir
+    name: { de: Backup-Verzeichnis, en: Backup directory }
+    description: Das Verzeichnis für die Backups, relativ zum Server-Verzeichnis.
+    type: STRING
+    category: world
+    visibleWhen: { setting: backup, truthy: true }
+    validation: { maxLength: 255, pattern: '[A-Za-z0-9._/-]+' }
+  - key: backupFrequency
+    name: { de: Backup-Intervall (Minuten), en: Backup interval (minutes) }
+    type: NUMBER
+    category: world
+    visibleWhen: { setting: backup, truthy: true }
+    validation: { integer: true, min: 1 }
+  - key: backupMaxCount
+    name: { de: Maximale Anzahl Backups, en: Maximum number of backups }
+    type: NUMBER
+    category: world
+    visibleWhen: { setting: backup, truthy: true }
+    validation: { integer: true, min: 1 }
+  # TODO(M4): CurseForge mods need an engine feature; hytale stays on the legacy implementation
+  #   until then. Declared so that existing values survive; edited on the panel's mods page.
+  - key: cfMods
+    name: CurseForge-Mods
+    type: STRINGLIST
+    category: mods
+    userEditable: false
+
+protectedFiles:
+  - { path: /Server/HytaleServer.jar, readOnly: true }
+  - { path: /hytale-launcher/hytale-downloader-linux-amd64, readOnly: true }
+
+# Downloaded by the Hytale downloader on install/update.
+backupIgnore:
+  - /Server/HytaleServer.jar
+  - /Server/HytaleServer.aot
+  - /Assets.zip
+  - /hytale-launcher/**
+
+requirements:
+  minCpuThreads: 2
+  minRam: 4096
+  minDiskspace: 10

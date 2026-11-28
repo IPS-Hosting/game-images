@@ -1,0 +1,33 @@
+#!/bin/sh
+# steamcmd wrapper of the installer image. The root filesystem is read-only and steamcmd writes
+# into its own directory (self-update, appcache, logs), so it runs from a writable copy of the
+# steamcmd bootstrapped at build time ($STEAMCMD_DIR):
+#   - steamcmd stages: HOME is /ips/steam-home (private per stage, deleted after it) -> $HOME/steamcmd
+#   - script stages:   /tmp/ips-steamcmd-<uid> (private tmp dir of the server)
+set -eu
+if [ -n "${IPS_STEAMCMD_RUNTIME:-}" ]; then
+	rt=$IPS_STEAMCMD_RUNTIME
+else
+	case "${HOME:-}" in
+	/ips/*) rt=$HOME/steamcmd ;;
+	*) rt=/tmp/ips-steamcmd-$(id -u) ;;
+	esac
+fi
+if [ ! -x "$rt/steamcmd.sh" ]; then
+	mkdir -p "$rt"
+	cp -R --preserve=mode,timestamps "$STEAMCMD_DIR/." "$rt/"
+fi
+# Fresh-HOME steamcmd runs fail at random with "ERROR! Failed to install app 'N' (Missing
+# configuration)" (exit code 8; seen on de-fra-game2 for most anonymous apps, about every second run).
+# A second run in the same HOME succeeds, so the wrapper retries exit code 8 up to two times.
+# IPS_STEAMCMD_NO_RETRY=1 disables it.
+attempt=1
+while :; do
+	code=0
+	"$rt/steamcmd.sh" "$@" || code=$?
+	if [ "$code" -ne 8 ] || [ "$attempt" -ge 3 ] || [ -n "${IPS_STEAMCMD_NO_RETRY:-}" ]; then
+		exit "$code"
+	fi
+	attempt=$((attempt + 1))
+	echo "ips-installer: steamcmd exited with code 8, retry $attempt/3" >&2
+done

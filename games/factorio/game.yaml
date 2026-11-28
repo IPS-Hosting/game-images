@@ -1,0 +1,219 @@
+# Factorio — new game (headless server), based on the Pelican egg.
+# STATUS: boot-tested (2026-11-27, game2)
+#
+# The headless build is a pinned download from factorio.com; updates are a reviewed version bump
+# of the install stage (url, checksum). Space Age content is available to players who own it.
+apiVersion: 1
+
+short: factorio
+name: Factorio
+steamAppId: 427520
+tags: [building, simulation, strategy, co-op, moddable, multiplayer]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-standalone@0fb3f0c760a4e237593abd9a25bee6225b9f698f:factorio/factorio/egg-factorio.yaml
+    license: MIT
+
+run:
+  image: ghcr.io/pelican-eggs/yolks:debian@sha256:f4e18fadc9b2f2d1a300bffee78e5b87cccde4544e512acc36a1d370c1340121
+  dataPath: /home/container
+  env:
+    SAVE: '{{ .Setting "saveName" }}'
+    GAME_PORT: '{{ (.Port "game").Container }}'
+  # Creates the save on first start, then hosts it.
+  shell: |
+    if [ ! -f "saves/$SAVE.zip" ]; then
+      ./bin/x64/factorio --create "saves/$SAVE.zip" \
+        --map-gen-settings data/map-gen-settings.json --map-settings data/map-settings.json || exit 1
+    fi
+    exec ./bin/x64/factorio --port "$GAME_PORT" --server-settings data/server-settings.json \
+      --start-server "saves/$SAVE.zip"
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: /quit         # saves, then quits
+    timeoutSeconds: 60
+  ready:
+    pattern: 'Hosting game at'
+
+install:
+  # Factorio 2.1.25 headless (factorio-headless_linux_2.1.25.tar.xz)
+  - kind: download
+    url: https://factorio.com/get-download/2.1.25/headless/linux64
+    checksum: sha256:78da2f5aa99e9e0af7586d6bf82c04aae91165d53036720dabb26e855688f3ae
+    extract: { format: tar.xz, stripComponents: 1 }
+
+hooks:
+  postInstall:
+    - ensureDir: { path: saves }
+    - ensureDir: { path: mods }
+  preStart:
+    - copyIfMissing: { from: data/map-gen-settings.example.json, to: data/map-gen-settings.json }
+    - copyIfMissing: { from: data/map-settings.example.json, to: data/map-settings.json }
+
+players:
+  joinPattern: '\[JOIN\] (?P<name>\S+) joined the game'
+  leavePattern: '\[LEAVE\] (?P<name>\S+) left the game'
+
+ports:
+  - { identifier: game, protocol: UDP, default: 34197, group: 0 }
+
+settings:
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Factorio Server
+    validation: { required: true, minLength: 1, maxLength: 100 }
+  - key: description
+    name: { de: Beschreibung, en: Description }
+    type: STRING
+    default: Ein Factorio-Server
+    validation: { maxLength: 200 }
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    description:
+      de: 0 = unbegrenzt.
+      en: 0 means unlimited.
+    type: NUMBER
+    default: '0'
+    validation: { required: true, integer: true, min: 0, max: 255 }
+  - key: password
+    name: { de: Server-Passwort, en: Server password }
+    description:
+      de: Leer = kein Passwort.
+      en: Empty means no password.
+    type: HIDDENSTRING
+    validation: { maxLength: 64 }
+  - key: public
+    name: { de: In Serverliste anzeigen, en: Show in server list }
+    description:
+      de: Zeigt den Server in der öffentlichen Factorio-Serverliste. Benötigt factorio.com-Benutzername und Token.
+      en: Lists the server in the public Factorio server list. Needs a factorio.com username and token.
+    type: BOOLEAN
+    default: '0'
+    category: network
+  - key: username
+    name: { de: factorio.com-Benutzername, en: factorio.com username }
+    type: STRING
+    validation: { maxLength: 64 }
+    visibleWhen: { setting: public, truthy: true }
+    category: network
+  - key: token
+    name: { de: factorio.com-Token, en: factorio.com token }
+    description:
+      de: Zu finden unter https://factorio.com/profile.
+      en: Found at https://factorio.com/profile.
+    type: HIDDENSTRING
+    validation: { maxLength: 100, pattern: '[A-Za-z0-9]*' }
+    visibleWhen: { setting: public, truthy: true }
+    category: network
+  - key: verifyUsers
+    name: { de: Spieler-Verifizierung, en: User verification }
+    description:
+      de: Nur Spieler mit gültigem factorio.com-Konto dürfen beitreten.
+      en: Only players with a valid factorio.com account may join.
+    type: BOOLEAN
+    default: '1'
+    category: admin
+  - key: adminList
+    name: { de: Admins, en: Admins }
+    description:
+      de: Factorio-Benutzernamen mit Adminrechten. Leer = die bestehende server-adminlist.json (z. B. per /promote gepflegt) bleibt unverändert.
+      en: Factorio usernames with admin rights. Empty keeps the existing server-adminlist.json (e.g. maintained with /promote).
+    type: STRINGLIST
+    default: '[]'
+    category: admin
+  - key: saveName
+    name: { de: Spielstand, en: Save name }
+    description:
+      de: Datei in saves/. Ein neuer Name erzeugt beim Start eine neue Karte.
+      en: File in saves/. A new name creates a new map at start.
+    type: STRING
+    default: gamesave
+    validation: { required: true, minLength: 1, maxLength: 64, pattern: '[A-Za-z0-9_-]+' }
+    category: world
+  - key: autosaveInterval
+    name: { de: Autosave-Intervall (Minuten), en: Autosave interval (minutes) }
+    type: NUMBER
+    default: '10'
+    validation: { required: true, integer: true, min: 1, max: 999 }
+    category: world
+  - key: autosaveSlots
+    name: { de: Autosave-Slots, en: Autosave slots }
+    type: NUMBER
+    default: '5'
+    validation: { required: true, integer: true, min: 1, max: 999 }
+    category: world
+  - key: afkKick
+    name: { de: AFK-Kick (Minuten), en: AFK kick (minutes) }
+    description:
+      de: 0 = aus.
+      en: 0 disables it.
+    type: NUMBER
+    default: '0'
+    validation: { required: true, integer: true, min: 0, max: 999 }
+    category: gameplay
+  - key: pauseWhenEmpty
+    name: { de: Pause ohne Spieler, en: Pause when empty }
+    type: BOOLEAN
+    default: '1'
+    category: gameplay
+
+config:
+  - path: data/server-settings.json
+    format: json
+    createFrom: data/server-settings.example.json
+    values:
+      name: '{{ .Setting "name" }}'
+      description: '{{ .Setting "description" }}'
+      max_players: '{{ .Setting "maxPlayers" }}'
+      game_password: '{{ .Setting "password" }}'
+      visibility.public: '{{ .SettingBool "public" }}'
+      visibility.lan: 'false'
+      username: '{{ .Setting "username" }}'
+      token: '{{ .Setting "token" }}'
+      require_user_verification: '{{ .SettingBool "verifyUsers" }}'
+      autosave_interval: '{{ .Setting "autosaveInterval" }}'
+      autosave_slots: '{{ .Setting "autosaveSlots" }}'
+      afk_autokick_interval: '{{ .Setting "afkKick" }}'
+      auto_pause: '{{ .SettingBool "pauseWhenEmpty" }}'
+  # Default admin list of the write directory; /promote in game updates the same file.
+  - path: server-adminlist.json
+    format: template
+    when: { setting: adminList, notEquals: '[]' }
+    template: '{{ .Setting "adminList" }}'
+
+preconditions:
+  - check:
+      any:
+        - { setting: public, truthy: false }
+        - all:
+            - { setting: username, minLength: 1 }
+            - { setting: token, minLength: 1 }
+    message:
+      de: Für die öffentliche Serverliste werden factorio.com-Benutzername und Token benötigt. Ohne sie ist der Server nur per IP erreichbar.
+      en: The public server list needs a factorio.com username and token. Without them the server is reachable by IP only.
+    severity: warning
+
+protectedFiles:
+  - { path: /bin/**, readOnly: true }
+  - { path: /data/base/**, readOnly: true }
+  - { path: /data/core/**, readOnly: true }
+
+# Game files come from the download; saves, mods and data/*.json are kept.
+backupIgnore:
+  - bin/**
+  - data/base/**
+  - data/core/**
+  - data/elevated-rails/**
+  - data/quality/**
+  - data/space-age/**
+  - data/recycler/**
+  - temp/**
+
+requirements:
+  minCpuThreads: 2
+  minRam: 2048
+  minDiskspace: 3

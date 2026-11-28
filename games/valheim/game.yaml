@@ -1,0 +1,152 @@
+# Valheim — migration target for the existing platform game.
+# Legacy sources: ipsd game/valheim.go, valheim/entrypoint.sh. Setting keys, defaults and paths
+# match the production game so that existing servers keep their values and saves.
+# STATUS: boot-tested (2026-11-28, game2) with the own image ipshosting/game-valheim:v3
+apiVersion: 1
+
+short: valheim
+name: Valheim
+steamAppId: 892970
+tags: [survival, open-world, co-op, crafting, moddable]
+
+sources:
+  - kind: manual
+
+run:
+  image: ipshosting/game-valheim:v3
+  dataPath: /home/ips-hosting
+  env:
+    GAME_PORT: '{{ (.Port "game").Container }}'
+    NAME: '{{ .Setting "name" }}'
+    WORLD: '{{ .Setting "world" }}'
+    PASSWORD: '{{ .Setting "password" }}'
+    PUBLIC: '{{ .SettingBool "public" | boolInt }}'
+    SAVEINTERVAL: '{{ .Setting "saveinterval" }}'
+    BACKUPS: '{{ .Setting "backups" }}'
+    BACKUPSHORT: '{{ .Setting "backupshort" }}'
+    BACKUPLONG: '{{ .Setting "backuplong" }}'
+    CROSSPLAY: '{{ .SettingBool "crossplay" | boolInt }}'
+  # Shell start: BepInEx/ValheimPlus need the doorstop variables only when the mod loader is
+  # installed, exactly like the production entrypoint.
+  shell: |
+    if [ -d BepInEx ]; then
+      export DOORSTOP_ENABLE=TRUE
+      export DOORSTOP_INVOKE_DLL_PATH="$HOME/BepInEx/core/BepInEx.Preloader.dll"
+      export DOORSTOP_CORLIB_OVERRIDE_PATH="$HOME/unstripped_corlib"
+      export LD_LIBRARY_PATH="$HOME/doorstop_libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      export LD_PRELOAD="libdoorstop_x64.so${LD_PRELOAD:+:$LD_PRELOAD}"
+    fi
+    export LD_LIBRARY_PATH="$HOME/linux64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    export SteamAppId=892970
+    set -- -nographics -batchmode -port "$GAME_PORT" -name "$NAME" -world "$WORLD" \
+      -password "$PASSWORD" -savedir "$HOME/data" -public "$PUBLIC" \
+      -saveinterval "$SAVEINTERVAL" -backups "$BACKUPS" -backupshort "$BACKUPSHORT" -backuplong "$BACKUPLONG"
+    if [ "$CROSSPLAY" = "1" ]; then set -- "$@" -crossplay; fi
+    exec ./valheim_server.x86_64 "$@"
+  console:
+    via: none
+  stop:
+    via: signal
+    signal: SIGINT          # valheim saves the world on SIGINT
+    timeoutSeconds: 30
+  ready:
+    pattern: 'DungeonDB Start'
+
+install:
+  - kind: steamcmd
+    appId: 896660
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+
+query:
+  protocol: a2s
+  port: query
+
+ports:
+  - { identifier: game,  protocol: UDP, default: 2456, group: 0 }
+  - { identifier: query, protocol: UDP, default: 2457, group: 0 }
+
+settings:
+  - key: name
+    name: Name
+    type: STRING
+    default: A Valheim server powered by ips-hosting.com
+    validation: { required: true, minLength: 3, maxLength: 255 }
+  - key: world
+    name: Welt
+    description: Der Name der Welt
+    type: STRING
+    default: Dedicated
+    validation: { required: true, minLength: 3, maxLength: 251 }
+  - key: password
+    name: Passwort
+    description: Das Server Passwort. Muss aus mindestens 5 Zeichen bestehen und darf nicht im Server Namen enthalten sein.
+    type: HIDDENSTRING
+    default: '#Change_Me!'
+    validation: { required: true, minLength: 5, maxLength: 255 }
+  - key: public
+    name: Öffentlich
+    description: Ob der Server in der Serverliste angezeigt wird.
+    type: BOOLEAN
+    default: '1'
+  - key: crossplay
+    name: Crossplay
+    description: Erlaubt Spielern von Xbox und Microsoft Store, dem Server beizutreten.
+    type: BOOLEAN
+    default: '0'
+  - key: saveinterval
+    name: Speicherintervall (Sekunden)
+    type: NUMBER
+    default: '1800'
+    validation: { integer: true, min: 60 }
+  - key: backups
+    name: Anzahl Backups
+    type: NUMBER
+    default: '4'
+    validation: { integer: true, min: 1 }
+  - key: backupshort
+    name: Erstes Backup nach (Sekunden)
+    type: NUMBER
+    default: '7200'
+    validation: { integer: true, min: 60 }
+  - key: backuplong
+    name: Weitere Backups alle (Sekunden)
+    type: NUMBER
+    default: '43200'
+    validation: { integer: true, min: 60 }
+  - key: betaBranch
+    name: Beta-Branch
+    description: Name der Beta Branch, auf der der Server laufen soll. Beim Wechsel können Server-Dateien überschrieben werden.
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: Beta-Passwort
+    description: Manche Beta Branches sind durch ein Passwort geschützt, welches hier angegeben werden kann.
+    type: HIDDENSTRING
+    category: steamBeta
+
+preconditions:
+  - check: { setting: password, minLength: 5 }
+    message: Das Server-Passwort muss aus mindestens 5 Zeichen bestehen.
+  - check: { setting: password, notContains: name }
+    message: Das Server-Passwort darf nicht im Servernamen enthalten sein.
+
+# Server files from the steamcmd stage (re-downloaded on install); saves are in data/.
+backupIgnore:
+  - /valheim_server_Data/**
+  - /linux64/**
+  - /steamapps/**
+  - /UnityPlayer.so
+
+protectedFiles:
+  - { path: /valheim_server.x86_64, readOnly: true }
+
+# The production game shows neither a map nor a Steam connect button.
+flags:
+  showMap: false
+  steamConnect: false
+
+requirements:
+  minCpuThreads: 1
+  minRam: 2048
+  minDiskspace: 4

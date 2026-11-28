@@ -1,0 +1,143 @@
+# nanos world — new game without a Pelican egg, written from the official server manual (docs.nanos-world.com).
+# STATUS: boot-tested (2026-11-27, game2)
+# NOTE: hosting terms to confirm with the publisher
+#
+# The server rewrites Config.toml at every start, so all managed options are passed on the command
+# line (without --save), and everything else stays editable in Config.toml.
+apiVersion: 1
+
+short: nanosworld
+name: nanos world
+steamAppId: 1841660
+tags: [sandbox, multiplayer, roleplay, moddable]
+
+sources:
+  - kind: manual
+
+run:
+  # Ubuntu 24.04: the server needs libstdc++ GLIBCXX_3.4.32 (GCC 13+), the debian (bookworm) image
+  # has only 3.4.30.
+  image: ghcr.io/parkervcp/steamcmd:ubuntu@sha256:c79047b2370a2ad613d37ad8b7c2d75dcf8ec7c236db57a1c7791245e2b26452
+  dataPath: /home/container
+  exec:
+    - ./NanosWorldServer.sh
+    - --steam_app
+    - '{{ .Setting "steamApp" }}'
+    - --dedicated_server
+    - '1'
+    - --ip
+    - 0.0.0.0
+    - --port
+    - '{{ (.Port "game").Container }}'
+    - --query_port
+    - '{{ (.Port "query").Container }}'
+    - --name
+    - '{{ .Setting "name" }}'
+    - --description
+    - '{{ .Setting "description" }}'
+    - --max_players
+    - '{{ .Setting "maxPlayers" }}'
+    - --announce
+    - '{{ .SettingBool "public" | boolInt }}'
+    - arg: --password
+      value: '{{ .Setting "password" }}'
+    - arg: --map
+      value: '{{ .Setting "map" }}'
+    - arg: --game_mode
+      value: '{{ .Setting "gameMode" }}'
+    - arg: --token
+      value: '{{ .Setting "token" }}'
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: stop
+    timeoutSeconds: 20
+
+install:
+  - kind: steamcmd
+    appId: 1936830
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+
+ports:
+  - { identifier: game, protocol: UDP, default: 7777, group: 0 }
+  - { identifier: http, protocol: TCP, default: 7777, group: 0 }
+  - { identifier: query, protocol: UDP, default: 7778, group: 0 }
+
+settings:
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Mein nanos world Server
+    validation: { required: true, minLength: 3, maxLength: 64 }
+  - key: description
+    name: { de: Beschreibung, en: Description }
+    type: STRING
+    default: Ein Server von ips-hosting.com
+    validation: { maxLength: 127 }
+  - key: password
+    name: { de: Server-Passwort, en: Server password }
+    description: { de: Leer lassen für einen öffentlichen Server., en: Leave empty for a public server. }
+    type: HIDDENSTRING
+    validation: { maxLength: 64 }
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '32'
+    validation: { integer: true, min: 1, max: 999 }
+  - key: public
+    name: { de: In Serverliste anzeigen, en: Show in server list }
+    type: BOOLEAN
+    default: '1'
+    category: network
+  - key: steamApp
+    name: { de: Steam-App, en: Steam app }
+    description: { de: Spieler müssen dieselbe App (Playtest oder Spiel) nutzen wie der Server., en: Players must use the same app (playtest or game) as the server. }
+    type: STRINGENUM
+    default: playtest
+    category: network
+    values:
+      - { value: playtest, label: Playtest }
+      - { value: game, label: { de: Spiel, en: Game } }
+  - key: map
+    name: { de: Karte, en: Map }
+    description: { de: 'Paket der Karte, z. B. default-blank-map. Leer lässt den Wert aus Config.toml.', en: 'Map package, e.g. default-blank-map. Empty keeps the value from Config.toml.' }
+    type: STRING
+    default: default-blank-map
+    category: gameplay
+    validation: { maxLength: 128, pattern: '[A-Za-z0-9_./:-]*' }
+  - key: gameMode
+    name: { de: Spielmodus, en: Game mode }
+    description: { de: Paketname des Spielmodus. Leer lässt den Wert aus Config.toml., en: Package name of the game mode. Empty keeps the value from Config.toml. }
+    type: STRING
+    category: gameplay
+    validation: { maxLength: 128, pattern: '[A-Za-z0-9_./:-]*' }
+  - key: token
+    name: Vault Token
+    description: { de: Optional. Token von nanos world für Paket-Downloads aus dem Vault., en: Optional. nanos world token for package downloads from the vault. }
+    type: HIDDENSTRING
+    category: mods
+    validation: { maxLength: 256 }
+  - key: betaBranch
+    name: Beta-Branch
+    description: { de: 'z. B. bleeding-edge.', en: 'e.g. bleeding-edge.' }
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: { de: Beta-Passwort, en: Beta password }
+    type: HIDDENSTRING
+    category: steamBeta
+
+protectedFiles:
+  - { path: /NanosWorldServer*, readOnly: true }
+
+backupIgnore:
+  - steamapps/**
+  - NanosWorldServer*
+  - Logs/**
+
+requirements:
+  minCpuThreads: 1
+  minRam: 1024
+  minDiskspace: 2

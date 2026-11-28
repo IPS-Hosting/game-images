@@ -1,0 +1,283 @@
+# Space Engineers — new game, Windows-only dedicated server under Wine, based on the Pelican egg.
+# STATUS: boot-tested (2026-11-28, game2); production needs the Wine runtime and the M3 installer
+# (winetricks stage)
+#
+# Runs under the pelican wine_latest yolk. Start arguments, ports, ready line, the managed XML keys,
+# the winetricks list and the starter world follow the pelican egg (space_engineers/default). The
+# egg's world and config template are downloaded from the pinned egg commit and copied into place
+# only when missing, so updates never touch a running world.
+# Wine/Proton runtime contract (prefix, tmpfs, display, stop): games/enshrouded/README.md.
+apiVersion: 1
+
+short: spaceengineers
+name: Space Engineers
+steamAppId: 244850
+tags: [sandbox, space, building, survival, simulation, moddable]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:space_engineers/default/egg-space-engineers.json
+    license: MIT
+
+run:
+  image: ghcr.io/pelican-eggs/yolks:wine_latest@sha256:1d4cc591785abceb9faae159dcf6ce686d5327d4abfa4ba40db74937aa9a3b7b
+  dataPath: /home/container
+  tmpfs: [/tmp]
+  env:
+    WINEPREFIX: /home/container/.wine
+    WINEARCH: win64
+    WINEDEBUG: -all
+    # The server is a .NET application: mscoree must stay enabled (wine-mono).
+    WINEDLLOVERRIDES: mscoree=n,b;mshtml=n,b;winemenubuilder.exe=d
+    DISPLAY: ':99'
+  # `wine` runs the server as its own Unix process (start.exe /exec stays the parent and ignores
+  # SIGINT), so the trap forwards the stop signal to the server, which saves and shuts down. Then
+  # it waits for "press any key" on its console; the trap ends it once the log says Steam closed
+  # (at most 100 s: the log is not always flushed in time; the world is saved before).
+  # The server stays in the foreground terminal: with a pipe on stdout, Wine's console does not
+  # write to stdout. Boot test 2026-11-28: stop in 4–100 s, world saved.
+  shell: |
+    if [ ! -f "$WINEPREFIX/system.reg" ]; then
+      echo "The Wine prefix is missing. Reinstall the server to recreate it." >&2
+      exit 1
+    fi
+    Xvfb :99 -screen 0 1024x768x16 -nolisten tcp >/dev/null 2>&1 &
+    i=0
+    while [ ! -e /tmp/.X11-unix/X99 ] && [ "$i" -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+    game_pids() {
+      for p in /proc/[0-9]*; do
+        case "$(tr '\0' '\n' 2>/dev/null < "$p/cmdline" | head -n 1)" in
+          *SpaceEngineersDedicated.exe) echo "${p#/proc/}" ;;
+        esac
+      done
+    }
+    stop_server() {
+      if [ -z "$(game_pids)" ]; then
+        # The server process does not exist yet: signal the shell again once it does.
+        ( i=0; while [ -z "$(game_pids)" ] && [ "$i" -lt 3000 ]; do sleep 0.1; i=$((i + 1)); done; kill -INT $$ ) &
+        return
+      fi
+      for pid in $(game_pids); do kill -INT "$pid" 2>/dev/null; done
+      log=$(ls -t config/SpaceEngineersDedicated_*.log 2>/dev/null | head -n 1)
+      i=0
+      while [ -n "$log" ] && [ "$i" -lt 100 ] && ! grep -q -- '-> *Steam closed' "$log"; do
+        sleep 1; i=$((i + 1))
+      done
+      for pid in $(game_pids); do kill -TERM "$pid" 2>/dev/null; done
+    }
+    trap stop_server INT TERM
+    wine ./DedicatedServer64/SpaceEngineersDedicated.exe \
+      -path 'Z:\home\container\config' -console -ignorelastsession &
+    launcher=$!
+    status=0
+    while :; do
+      wait "$launcher"; status=$?
+      kill -0 "$launcher" 2>/dev/null || break # wait was interrupted by the trap
+    done
+    # wine returns when the server exits; wait for every server process anyway, so the container
+    # does not stop while one is still saving.
+    while [ -n "$(game_pids)" ]; do sleep 1 & wait $!; done
+    exit "$status"
+  console:
+    via: none
+  stop:
+    via: signal
+    signal: SIGINT
+    timeoutSeconds: 120
+  ready:
+    pattern: 'Game ready\.\.\.'
+
+install:
+  # Steamworks redistributable: the egg copies its steamclient DLLs into DedicatedServer64 for mods.
+  - kind: steamcmd
+    appId: 1007
+    platform: windows
+  - kind: steamcmd
+    appId: 298740
+    platform: windows
+  # Starter world and config template of the egg (copied into config/ by postInstall when missing).
+  - kind: download
+    url: https://raw.githubusercontent.com/pelican-eggs/games-steamcmd/0547150ac32eceac7a1aefb2353aae36b5d2f321/space_engineers/default/World.zip
+    checksum: sha256:b2a982b36fd699dc2b220963b08ca35edce682ad581c914e94fffdb60b01b398
+    dest: .ips-defaults
+    extract: { format: zip }
+  - kind: download
+    url: https://raw.githubusercontent.com/pelican-eggs/games-steamcmd/0547150ac32eceac7a1aefb2353aae36b5d2f321/space_engineers/default/SpaceEngineers-Dedicated.cfg
+    checksum: sha256:b2d6f22158fe358c05ac5a6abb98826cd25c2ca7eee147bdc4bf46d8f538348b
+    dest: .ips-defaults/SpaceEngineers-Dedicated.cfg
+  # wine-mono for the .NET runtime (the yolk entrypoint fetches the latest release at every boot;
+  # pinned here).
+  - kind: download
+    url: https://github.com/wine-mono/wine-mono/releases/download/wine-mono-11.2.1/wine-mono-11.2.1-x86.msi
+    checksum: sha256:e38810c017ccb64d450bbd6095d41c0b50e3fd967c306f6d2c64c3a48945cc92
+    dest: .ips-defaults/wine-mono.msi
+  # Wine prefix with the runtime the egg installs at every boot (WINETRICKS_RUN). winetricks skips
+  # verbs that are already installed; wine-mono is installed once.
+  - kind: script
+    image: ghcr.io/pelican-eggs/yolks:wine_latest@sha256:1d4cc591785abceb9faae159dcf6ce686d5327d4abfa4ba40db74937aa9a3b7b
+    env:
+      WINEPREFIX: /home/container/.wine
+      WINEARCH: win64
+      WINEDEBUG: -all
+      WINEDLLOVERRIDES: mscoree=n,b;mshtml=n,b;winemenubuilder.exe=d
+      XDG_CACHE_HOME: /tmp/winetricks-cache
+      TRICKS: win11 vcrun2022 corefonts
+    shell: |
+      set -eu
+      mkdir -p "$WINEPREFIX"
+      Xvfb :98 -screen 0 1024x768x16 -nolisten tcp >/dev/null 2>&1 &
+      xvfb=$!
+      export DISPLAY=:98
+      # mscoree/mshtml disabled while the prefix is created: otherwise wineboot opens the "install
+      # Wine Mono" dialog on the Xvfb display and waits forever (wine-mono is installed below).
+      WINEDLLOVERRIDES="mscoree=;mshtml=;winemenubuilder.exe=d" wineboot --init
+      wineserver -w
+      if [ ! -d "$WINEPREFIX/drive_c/windows/mono" ]; then
+        wine msiexec /i "$IPS_DATA_PATH/.ips-defaults/wine-mono.msi" /qn /norestart
+      fi
+      for trick in $TRICKS; do
+        winetricks -q "$trick"
+      done
+      wineserver -w
+      kill "$xvfb" 2>/dev/null || true
+      rm -rf "$XDG_CACHE_HOME" "$IPS_DATA_PATH/.ips-defaults/wine-mono.msi"
+
+hooks:
+  postInstall:
+    - copyIfMissing: { from: .ips-defaults/World, to: config/Saves/World }
+    - copyIfMissing: { from: .ips-defaults/SpaceEngineers-Dedicated.cfg, to: config/SpaceEngineers-Dedicated.cfg }
+    - symlink: { target: steamclient.dll, link: DedicatedServer64/steamclient.dll }
+    - symlink: { target: steamclient64.dll, link: DedicatedServer64/steamclient64.dll }
+    - symlink: { target: tier0_s.dll, link: DedicatedServer64/tier0_s.dll }
+    - symlink: { target: tier0_s64.dll, link: DedicatedServer64/tier0_s64.dll }
+    - symlink: { target: vstdlib_s.dll, link: DedicatedServer64/vstdlib_s.dll }
+    - symlink: { target: vstdlib_s64.dll, link: DedicatedServer64/vstdlib_s64.dll }
+
+query:
+  protocol: a2s
+  port: game
+
+ports:
+  - { identifier: game,  protocol: UDP, default: 27016, group: 0 }
+  - { identifier: steam, protocol: UDP, default: 8766,  group: 1 }
+
+settings:
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Mein Space Engineers Server
+    validation: { required: true, minLength: 3, maxLength: 64 }
+  - key: description
+    name: { de: Beschreibung, en: Description }
+    type: STRING
+    default: Ein Space Engineers Server
+    validation: { maxLength: 200 }
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '4'
+    validation: { integer: true, min: 1, max: 64 }
+  - key: onlineMode
+    name: { de: Sichtbarkeit, en: Visibility }
+    type: STRINGENUM
+    default: PUBLIC
+    category: network
+    values:
+      - { value: PUBLIC, label: Öffentlich }
+      - { value: FRIENDS, label: Nur Freunde }
+      - { value: PRIVATE, label: Privat }
+  - key: gameMode
+    name: { de: Spielmodus, en: Game mode }
+    type: STRINGENUM
+    default: Survival
+    category: gameplay
+    values:
+      - { value: Survival }
+      - { value: Creative, label: Kreativ }
+  - key: enableSaving
+    name: { de: Speichern aktiviert, en: Saving enabled }
+    type: BOOLEAN
+    default: '1'
+    category: world
+  - key: autosaveInterval
+    name: { de: Autosave-Intervall (Minuten), en: Autosave interval (minutes) }
+    type: NUMBER
+    default: '5'
+    validation: { integer: true, min: 1, max: 999 }
+    category: world
+  - key: experimentalMode
+    name: { de: Experimenteller Modus, en: Experimental mode }
+    description: Für Mods erforderlich.
+    type: BOOLEAN
+    default: '0'
+    category: mods
+  - key: ingameScripts
+    name: { de: Ingame-Skripte, en: In-game scripts }
+    description: Erlaubt programmierbare Blöcke.
+    type: BOOLEAN
+    default: '0'
+    category: gameplay
+
+# The session settings exist in the server config and in both world files; the egg keeps all three
+# in sync, so does this definition. The world name is fixed (the egg's starter world).
+config:
+  - path: config/SpaceEngineers-Dedicated.cfg
+    format: xml
+    onlyIfExists: true
+    values:
+      MyConfigDedicated.ServerName: '{{ .Setting "name" }}'
+      MyConfigDedicated.ServerDescription: '{{ .Setting "description" }}'
+      MyConfigDedicated.WorldName: World
+      MyConfigDedicated.LoadWorld: 'Z:\home\container\config\Saves\World\Sandbox.sbc'
+      MyConfigDedicated.IP: 0.0.0.0
+      MyConfigDedicated.ServerPort: '{{ (.Port "game").Container }}'
+      MyConfigDedicated.SteamPort: '{{ (.Port "steam").Container }}'
+      MyConfigDedicated.RemoteApiEnabled: 'false'
+      MyConfigDedicated.SessionSettings.GameMode: '{{ .Setting "gameMode" }}'
+      MyConfigDedicated.SessionSettings.OnlineMode: '{{ .Setting "onlineMode" }}'
+      MyConfigDedicated.SessionSettings.MaxPlayers: '{{ .Setting "maxPlayers" }}'
+      MyConfigDedicated.SessionSettings.AutoSaveInMinutes: '{{ .Setting "autosaveInterval" }}'
+      MyConfigDedicated.SessionSettings.EnableSaving: '{{ ternary "true" "false" (.SettingBool "enableSaving") }}'
+      MyConfigDedicated.SessionSettings.ExperimentalMode: '{{ ternary "true" "false" (.SettingBool "experimentalMode") }}'
+      MyConfigDedicated.SessionSettings.EnableIngameScripts: '{{ ternary "true" "false" (.SettingBool "ingameScripts") }}'
+  - path: config/Saves/World/Sandbox.sbc
+    format: xml
+    onlyIfExists: true
+    values:
+      MyObjectBuilder_Checkpoint.Settings.GameMode: '{{ .Setting "gameMode" }}'
+      MyObjectBuilder_Checkpoint.Settings.OnlineMode: '{{ .Setting "onlineMode" }}'
+      MyObjectBuilder_Checkpoint.Settings.MaxPlayers: '{{ .Setting "maxPlayers" }}'
+      MyObjectBuilder_Checkpoint.Settings.AutoSaveInMinutes: '{{ .Setting "autosaveInterval" }}'
+      MyObjectBuilder_Checkpoint.Settings.EnableSaving: '{{ ternary "true" "false" (.SettingBool "enableSaving") }}'
+      MyObjectBuilder_Checkpoint.Settings.ExperimentalMode: '{{ ternary "true" "false" (.SettingBool "experimentalMode") }}'
+      MyObjectBuilder_Checkpoint.Settings.EnableIngameScripts: '{{ ternary "true" "false" (.SettingBool "ingameScripts") }}'
+  - path: config/Saves/World/Sandbox_config.sbc
+    format: xml
+    onlyIfExists: true
+    values:
+      MyObjectBuilder_WorldConfiguration.Settings.GameMode: '{{ .Setting "gameMode" }}'
+      MyObjectBuilder_WorldConfiguration.Settings.OnlineMode: '{{ .Setting "onlineMode" }}'
+      MyObjectBuilder_WorldConfiguration.Settings.MaxPlayers: '{{ .Setting "maxPlayers" }}'
+      MyObjectBuilder_WorldConfiguration.Settings.AutoSaveInMinutes: '{{ .Setting "autosaveInterval" }}'
+      MyObjectBuilder_WorldConfiguration.Settings.EnableSaving: '{{ ternary "true" "false" (.SettingBool "enableSaving") }}'
+      MyObjectBuilder_WorldConfiguration.Settings.ExperimentalMode: '{{ ternary "true" "false" (.SettingBool "experimentalMode") }}'
+      MyObjectBuilder_WorldConfiguration.Settings.EnableIngameScripts: '{{ ternary "true" "false" (.SettingBool "ingameScripts") }}'
+
+protectedFiles:
+  - { path: /DedicatedServer64/**, readOnly: true }
+  - { path: /.ips-defaults/**, readOnly: true }
+
+# Game files are recreated by install; the Wine prefix needs a reinstall after a restore.
+backupIgnore:
+  - DedicatedServer64/**
+  - Content/**
+  - '*.dll'
+  - steamapps/**
+  - .wine/**
+  - .ips-defaults/**
+  - config/*.log
+
+requirements:
+  minCpuThreads: 2
+  minRam: 6144
+  minDiskspace: 12

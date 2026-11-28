@@ -1,0 +1,59 @@
+name: "Build installer"
+
+on:
+  schedule:
+    - cron: 0 0 * * 0
+
+  push:
+    branches:
+      - main
+    paths:
+      - "installer/**"
+      - ".github/workflows/installer.yml"
+
+concurrency:
+  group: installer
+  cancel-in-progress: true
+
+env:
+  IMAGE: ipshosting/installer
+  VERSION: 1
+  DOCKER_HUB_DESCRIPTION: "Install stages (steamcmd, scripts) of IPS Hosting game definitions"
+
+jobs:
+  build-and-deploy:
+    name: Build and push Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      # Not BuildKit: the steamcmd bootstrapper fails every download under BuildKit (see Dockerfile).
+      - name: Build
+        run: podman build -t "docker.io/$IMAGE:v$VERSION" -t "docker.io/$IMAGE:latest" installer/
+
+      - name: Check the image contract
+        run: |
+          podman run --rm --read-only --user 1000:1000 "docker.io/$IMAGE:v$VERSION" sh -ec '
+            test -f "$STEAMCMD_DIR/linux32/steamclient.so"
+            test -f "$STEAMCMD_DIR/linux64/steamclient.so"
+            for tool in steamcmd curl jq unzip tar xz; do command -v "$tool" >/dev/null; done
+            HOME=/tmp/check steamcmd +login anonymous +quit'
+
+      - name: Push
+        env:
+          DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+          DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
+        run: |
+          printf '%s' "$DOCKER_HUB_PASSWORD" | podman login docker.io --username "$DOCKER_HUB_USERNAME" --password-stdin
+          podman push "docker.io/$IMAGE:v$VERSION"
+          podman push "docker.io/$IMAGE:latest"
+
+      - name: Update DockerHub description
+        uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+          repository: ${{ env.IMAGE }}
+          short-description: ${{ env.DOCKER_HUB_DESCRIPTION }}
+          readme-filepath: ./installer/README.md

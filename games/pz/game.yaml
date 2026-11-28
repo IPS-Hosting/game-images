@@ -1,0 +1,132 @@
+# Project Zomboid — migration target for the existing platform game.
+# Legacy sources: ipsd game/pz.go, pz/entrypoint.sh. Setting keys, port identifiers, the heap size
+# rule and the data layout (cache dir Zomboid/) match the production game so that existing servers
+# keep their values and saves.
+# STATUS: boot-tested (2026-11-27, game2)
+apiVersion: 1
+
+short: pz
+name: Project Zomboid
+steamAppId: 108600
+tags: [survival, zombies, open-world, co-op, sandbox, crafting]
+
+sources:
+  - kind: manual
+
+run:
+  image: ipshosting/game-pz:v2
+  dataPath: /home/ips-hosting
+  env:
+    GAME_PORT: '{{ (.Port "game").Container }}'
+    QUERY_PORT: '{{ (.Port "query").Container }}'
+    SERVER_NAME: '{{ .Setting "serverName" }}'
+    ADMIN_USERNAME: '{{ .Setting "adminUsername" }}'
+    ADMIN_PASSWORD: '{{ .Setting "adminPassword" }}'
+    NO_STEAM: '{{ .SettingBool "noSteam" | boolInt }}'
+    STEAM_VAC: '{{ ternary "true" "false" (.SettingBool "steamVAC") }}'
+    DEBUG: '{{ .SettingBool "debug" | boolInt }}'
+  # Shell start: the server does not accept 0.0.0.0, production binds to the container address
+  # (hostname -I), exactly like the production entrypoint.
+  shell: |
+    HOST="$(hostname -I | cut -d' ' -f1)"
+    set -- -ip "$HOST" -port "$QUERY_PORT" -steamport1 "$GAME_PORT" -cachedir="$HOME/Zomboid" \
+      -servername "$SERVER_NAME" -adminusername "$ADMIN_USERNAME" -steamvac "$STEAM_VAC"
+    if [ -n "$ADMIN_PASSWORD" ]; then set -- "$@" -adminpassword "$ADMIN_PASSWORD"; fi
+    if [ "$NO_STEAM" = "1" ]; then set -- "$@" -nosteam; fi
+    if [ "$DEBUG" = "1" ]; then set -- "$@" -debug; fi
+    exec ./start-server.sh "$@"
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: quit            # saves the world, then exits
+    timeoutSeconds: 60
+  ready:
+    pattern: 'SERVER STARTED'
+
+install:
+  - kind: steamcmd
+    appId: 380870
+    beta: { branchSetting: betaBranch, passwordSetting: betaPassword }
+
+hooks:
+  preStart:
+    # JVM heap: all memory except 1 GiB (2 GiB from 10 GiB on) for the system and the JVM, as in production.
+    - replace:
+        path: ProjectZomboid64.json
+        pattern: '-Xmx.*'
+        replacement: '-Xmx{{ sub .Server.RamMB (ternary 2048 1024 (ge .Server.RamMB 10240)) }}m",'
+
+query:
+  protocol: a2s
+  port: query
+
+# TODO(M4): verify defaults and groups against the production port rows (not in the api seeds). The
+# identifiers follow ipsd: "query" is the main port (-port), "game" the Steam port (-steamport1).
+ports:
+  - { identifier: game,  protocol: UDP, default: 8766,  group: 0 }
+  - { identifier: query, protocol: UDP, default: 16261, group: 1 }
+
+settings:
+  - key: serverName
+    name: { de: Servername (Konfiguration), en: Server config name }
+    description: Name der Server-Konfiguration und des Spielstands (Zomboid/Server/<Name>.ini). Bei einer Änderung startet der Server mit einer neuen Welt.
+    type: STRING
+    default: servertest
+    validation: { required: true, pattern: '^[^/\\]{1,64}$' }
+  - key: adminUsername
+    name: { de: Admin-Benutzername, en: Admin username }
+    description: Wird nur beim ersten Start angelegt.
+    type: STRING
+    default: admin
+    category: admin
+    validation: { required: true, minLength: 1, maxLength: 64 }
+  # Production fell back to the image default "#Change_Me!" for an empty value. New servers get a
+  # generated password; an empty value only matters if the admin account is created again, and the
+  # server then asks for it on the console.
+  - key: adminPassword
+    name: { de: Admin-Passwort, en: Admin password }
+    description: Wird nur beim ersten Start für den Admin-Account gesetzt.
+    type: HIDDENSTRING
+    generate: { length: 16 }
+    category: admin
+    validation: { maxLength: 64 }
+  - key: steamVAC
+    name: { de: VAC aktiviert, en: VAC enabled }
+    type: BOOLEAN
+    default: '1'
+  - key: noSteam
+    name: { de: Ohne Steam, en: No Steam }
+    description: Startet den Server ohne Steam-Integration, z. B. für Spieler ohne Steam-Version. Steam-Spieler können dann nicht beitreten.
+    type: BOOLEAN
+    default: '0'
+    category: advanced
+  - key: debug
+    name: { de: Debug-Modus, en: Debug mode }
+    type: BOOLEAN
+    default: '0'
+    category: advanced
+  - key: betaBranch
+    name: Beta-Branch
+    description: Name der Beta Branch, auf der der Server laufen soll (z. B. unstable). Beim Wechsel können Server-Dateien überschrieben werden.
+    type: STRING
+    default: public
+    category: steamBeta
+  - key: betaPassword
+    name: Beta-Passwort
+    description: Manche Beta Branches sind durch ein Passwort geschützt, welches hier angegeben werden kann.
+    type: HIDDENSTRING
+    category: steamBeta
+
+protectedFiles:
+  - { path: /start-server.sh, readOnly: true }
+  - { path: /ProjectZomboid64, readOnly: true }
+  - { path: /jre64/**, readOnly: true }
+
+backupIgnore:
+  - /jre64/**
+
+requirements:
+  minCpuThreads: 2
+  minRam: 4096
+  minDiskspace: 10

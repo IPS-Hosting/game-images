@@ -1,0 +1,140 @@
+# Vintage Story — new game (dedicated server, .NET 10), based on the Pelican egg.
+# STATUS: boot-tested (2026-11-27, game2)
+#
+# The server is a pinned download from cdn.vintagestory.at; updates are a reviewed version bump
+# of the install stage (url, checksum). Players need their own game licence.
+apiVersion: 1
+
+short: vintagestory
+name: Vintage Story
+tags: [survival, sandbox, crafting, open-world, moddable, co-op]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-standalone@0fb3f0c760a4e237593abd9a25bee6225b9f698f:vintage_story/egg-vintage-story.json
+    license: MIT
+
+run:
+  image: ghcr.io/pelican-eggs/yolks:dotnet_10@sha256:147007122e9fc26b7c4ab437e42789a1738b9fb15a269e0f797d92425e0eeea7
+  dataPath: /home/container
+  tmpfs: [/tmp]
+  env:
+    DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+    # SQLite spills temporary files next to the saves instead of the small tmpfs.
+    SQLITE_TMPDIR: /home/container/data/Backups
+  exec:
+    - dotnet
+    - VintagestoryServer.dll
+    - --dataPath
+    - ./data
+    - '--port={{ (.Port "game").Container }}'
+    - '--maxclients={{ .Setting "maxPlayers" }}'
+  console:
+    via: stdin
+  stop:
+    via: command
+    command: /stop
+    timeoutSeconds: 60
+  ready:
+    pattern: 'Dedicated Server now running on Port '
+
+install:
+  # Vintage Story 1.22.7 (vs_server_linux-x64_1.22.7.tar.gz)
+  - kind: download
+    url: https://cdn.vintagestory.at/gamefiles/stable/vs_server_linux-x64_1.22.7.tar.gz
+    checksum: sha256:a7d4a520604590a96de812ee6c6baf4404d43d86cf1ec4fbac1b3a580b52c847
+    extract: { format: tar.gz }
+
+hooks:
+  postInstall:
+    - ensureDir: { path: data/Backups }
+
+ports:
+  - { identifier: game,     protocol: TCP, default: 42420, group: 0 }
+  - { identifier: game_udp, protocol: UDP, default: 42420, group: 0 }
+
+settings:
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Vintage Story Server
+    validation: { required: true, minLength: 1, maxLength: 100 }
+  - key: password
+    name: { de: Server-Passwort, en: Server password }
+    description:
+      de: Leer = kein Passwort.
+      en: Empty means no password.
+    type: HIDDENSTRING
+    validation: { maxLength: 64 }
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '16'
+    validation: { required: true, integer: true, min: 1, max: 256 }
+  - key: motd
+    name: { de: Begrüßungsnachricht, en: Message of the day }
+    type: STRING
+    default: 'Willkommen {0}, viel Spaß!'
+    validation: { maxLength: 256 }
+  - key: public
+    name: { de: In Serverliste anzeigen, en: Show in server list }
+    description:
+      de: Zeigt den Server in der öffentlichen Vintage-Story-Serverliste.
+      en: Lists the server in the public Vintage Story server list.
+    type: BOOLEAN
+    default: '0'
+    category: network
+  - key: playStyle
+    name: { de: Spielstil, en: Play style }
+    description:
+      de: Nur beim Erzeugen einer neuen Welt verwendet.
+      en: Used only when a new world is created.
+    type: STRINGENUM
+    default: surviveandbuild
+    values:
+      - { value: surviveandbuild, label: { de: Standard (Überleben und Bauen), en: Standard (survive and build) } }
+      - { value: exploration, label: { de: Erkundung, en: Exploration } }
+      - { value: wildernesssurvival, label: { de: Wildnis-Überleben, en: Wilderness survival } }
+      - { value: creativebuilding, label: { de: Kreativ, en: Creative building } }
+    category: world
+  - key: seed
+    name: { de: Seed, en: Seed }
+    description:
+      de: Nur beim Erzeugen einer neuen Welt verwendet. Leer = zufällig.
+      en: Used only when a new world is created. Empty means random.
+    type: STRING
+    validation: { maxLength: 64 }
+    category: world
+
+config:
+  # The server writes the full file on first start; values are applied from the second start on.
+  - path: data/serverconfig.json
+    format: json
+    onlyIfExists: true
+    values:
+      ServerName: '{{ .Setting "name" }}'
+      Password: '{{ .Setting "password" }}'
+      WelcomeMessage: '{{ .Setting "motd" }}'
+      AdvertiseServer: '{{ .SettingBool "public" }}'
+      WorldConfig.PlayStyle: '{{ .Setting "playStyle" }}'
+      WorldConfig.Seed: '{{ .Setting "seed" }}'
+
+protectedFiles:
+  - { path: /VintagestoryServer*, readOnly: true }
+  - { path: /VintagestoryAPI.*, readOnly: true }
+  - { path: /VintagestoryLib.*, readOnly: true }
+  - { path: /Lib/**, readOnly: true }
+  - { path: /assets/**, readOnly: true }
+
+backupIgnore:
+  - assets/**
+  - Lib/**
+  - Vintagestory*.dll
+  - Vintagestory*.pdb
+  - data/Backups/**
+  - data/Logs/**
+
+requirements:
+  minCpuThreads: 2
+  minRam: 2048
+  minDiskspace: 4

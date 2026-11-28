@@ -1,0 +1,218 @@
+# DayZ — new game, derived from the Pelican egg (games-steamcmd dayz).
+# STATUS: out of scope for now (needs a host Steam account that owns DayZ; to be evaluated later).
+# Not boot-tested and not offered until then. Boot-test risks: host Steam login, ports +1..+3.
+#
+# The dedicated server (app 223350) can only be downloaded by a Steam account that owns DayZ, so
+# the install uses the host's Steam login (login: host). The image entrypoint (mod downloads via
+# steamcmd at every start) is not used; the server binary is started directly. Workshop mods are
+# copied into the server directory by the customer and loaded via the mod settings.
+apiVersion: 1
+
+short: dayz
+name: DayZ
+steamAppId: 221100
+tags: [survival, zombies, open-world, pvp, multiplayer, moddable]
+
+sources:
+  - kind: egg
+    ref: pelican-eggs/games-steamcmd@0547150ac32eceac7a1aefb2353aae36b5d2f321:dayz/egg-day-z.json
+    license: MIT
+
+run:
+  image: ghcr.io/parkervcp/games:dayz@sha256:27da2998d9e1cc18e399c3bacb7040e75dffcce455ea4607b8a8de5888704240
+  dataPath: /home/container
+  exec:
+    - ./DayZServer
+    - '-port={{ (.Port "game").Container }}'
+    - -profiles=profiles
+    - -bepath=./
+    - -config=ips-serverDZ.cfg
+    - '-mod={{ .Setting "mods" }}'
+    - '-serverMod={{ .Setting "serverMods" }}'
+    - -dologs
+    - -adminlog
+    - -netlog
+    - -freezecheck
+  console:
+    via: none
+  stop:
+    via: signal
+    signal: SIGINT
+    timeoutSeconds: 60
+  ready:
+    pattern: 'Mission read\.'
+
+install:
+  - kind: steamcmd
+    appId: 223350
+    login: host
+  # Steamworks SDK redistributable: provides linux64/steamclient.so for ~/.steam/sdk64.
+  - kind: steamcmd
+    appId: 1007
+    dir: steamworks
+    steamSdk: true
+
+hooks:
+  postInstall:
+    - ensureDir: { path: battleye }
+    - ensureDir: { path: profiles }
+
+query:
+  protocol: a2s
+  port: query
+
+# TODO(M3): DayZ also uses game port +1..+3 internally; verify that game and rcon alone suffice
+# behind the port mapping.
+ports:
+  - { identifier: game,  protocol: UDP, default: 2302,  group: 0 }
+  - { identifier: rcon,  protocol: UDP, default: 2305,  group: 0 }
+  - { identifier: query, protocol: UDP, default: 27016, group: 1 }
+
+settings:
+  - key: name
+    name: { de: Servername, en: Server name }
+    type: STRING
+    default: Mein DayZ Server
+    validation: { required: true, minLength: 3, maxLength: 100, pattern: '[^"]+' }
+  - key: password
+    name: { de: Server-Passwort, en: Server password }
+    description: { de: Leer lassen für einen öffentlichen Server., en: Leave empty for a public server. }
+    type: HIDDENSTRING
+    validation: { maxLength: 64, pattern: '[^"]*' }
+  - key: adminPassword
+    name: { de: Admin-Passwort, en: Admin password }
+    description: { de: 'Im Spiel mit #login <Passwort> als Admin anmelden.', en: 'Log in as admin in game with #login <password>.' }
+    type: HIDDENSTRING
+    category: admin
+    generate: { length: 16 }
+    validation: { maxLength: 64, pattern: '[^"]*' }
+  - key: rconPassword
+    name: { de: BattlEye-RCon-Passwort, en: BattlEye RCon password }
+    description: { de: Für externe RCon-Tools (BattlEye-Protokoll) auf dem RCon-Port., en: For external RCon tools (BattlEye protocol) on the RCon port. }
+    type: HIDDENSTRING
+    category: admin
+    generate: { length: 16 }
+    validation: { maxLength: 64, pattern: '[A-Za-z0-9]*' }
+  - key: maxPlayers
+    name: { de: Maximale Spieler, en: Max players }
+    type: NUMBER
+    default: '60'
+    validation: { integer: true, min: 1, max: 127 }
+  - key: mission
+    name: { de: Mission, en: Mission }
+    description:
+      de: 'Ordner unter mpmissions. Vanilla: dayzOffline.chernarusplus, dayzOffline.enoch (Livonia), dayzOffline.sakhal (Sakhal).'
+      en: 'Folder in mpmissions. Vanilla: dayzOffline.chernarusplus, dayzOffline.enoch (Livonia), dayzOffline.sakhal (Sakhal).'
+    type: STRING
+    default: dayzOffline.chernarusplus
+    category: world
+    validation: { required: true, maxLength: 100, pattern: '[A-Za-z0-9_.-]+' }
+  - key: disable3rdPerson
+    name: { de: Third-Person deaktivieren, en: Disable third person }
+    type: BOOLEAN
+    default: '0'
+    category: gameplay
+  - key: disableCrosshair
+    name: { de: Fadenkreuz deaktivieren, en: Disable crosshair }
+    type: BOOLEAN
+    default: '0'
+    category: gameplay
+  - key: disablePersonalLight
+    name: { de: Persönliches Licht deaktivieren, en: Disable personal light }
+    type: BOOLEAN
+    default: '1'
+    category: gameplay
+  - key: darkerNights
+    name: { de: Dunklere Nächte, en: Darker nights }
+    type: BOOLEAN
+    default: '0'
+    category: gameplay
+  - key: disableVoN
+    name: { de: Sprachchat deaktivieren, en: Disable voice chat }
+    type: BOOLEAN
+    default: '0'
+    category: gameplay
+  - key: timeAcceleration
+    name: { de: Zeitbeschleunigung, en: Time acceleration }
+    description: { de: Faktor für die Spielzeit (0–24)., en: Multiplier for the in-game time (0–24). }
+    type: NUMBER
+    default: '12'
+    category: world
+    validation: { integer: true, min: 0, max: 24 }
+  - key: nightTimeAcceleration
+    name: { de: Nachtbeschleunigung, en: Night acceleration }
+    description: { de: Zusätzlicher Faktor für die Nacht (0.1–64)., en: Additional multiplier for the night (0.1–64). }
+    type: NUMBER
+    default: '1'
+    category: world
+    validation: { min: 0.1, max: 64 }
+  - key: persistentTime
+    name: { de: Spielzeit speichern, en: Persistent time }
+    description: { de: Die Spielzeit wird beim nächsten Start fortgesetzt., en: The in-game time continues on the next start. }
+    type: BOOLEAN
+    default: '0'
+    category: world
+  - key: mods
+    name: { de: Client-Mods, en: Client mods }
+    description: { de: 'Mod-Ordner im Serververzeichnis, getrennt durch Semikolon, z. B. @CF;@VPPAdminTools.', en: 'Mod folders in the server directory, separated by semicolons, e.g. @CF;@VPPAdminTools.' }
+    type: STRING
+    category: mods
+    validation: { maxLength: 2000, pattern: '[@A-Za-z0-9_ .;/-]*' }
+  - key: serverMods
+    name: { de: Server-Mods, en: Server mods }
+    description: { de: 'Nur serverseitige Mod-Ordner, getrennt durch Semikolon.', en: 'Server-side only mod folders, separated by semicolons.' }
+    type: STRING
+    category: mods
+    validation: { maxLength: 2000, pattern: '[@A-Za-z0-9_ .;/-]*' }
+
+# The shipped serverDZ.cfg is empty for accounts that own DayZ and is replaced by updates, so the
+# server uses its own file. Managed lines are replaced by prefix; all other lines stay.
+config:
+  - path: ips-serverDZ.cfg
+    format: lines
+    values:
+      '// IPS Hosting:': '// IPS Hosting: hostname, passwords, maxPlayers, steamQueryPort and the mission are managed in the panel.'
+      hostname: 'hostname = "{{ .Setting "name" }}";'
+      password: 'password = "{{ .Setting "password" }}";'
+      passwordAdmin: 'passwordAdmin = "{{ .Setting "adminPassword" }}";'
+      maxPlayers: 'maxPlayers = {{ .Setting "maxPlayers" }};'
+      verifySignatures: 'verifySignatures = 2;'
+      guaranteedUpdates: 'guaranteedUpdates = 1;'
+      steamQueryPort: 'steamQueryPort = {{ (.Port "query").Container }};'
+      disable3rdPerson: 'disable3rdPerson = {{ .SettingBool "disable3rdPerson" | boolInt }};'
+      disableCrosshair: 'disableCrosshair = {{ .SettingBool "disableCrosshair" | boolInt }};'
+      disablePersonalLight: 'disablePersonalLight = {{ .SettingBool "disablePersonalLight" | boolInt }};'
+      lightingConfig: 'lightingConfig = {{ .SettingBool "darkerNights" | boolInt }};'
+      disableVoN: 'disableVoN = {{ .SettingBool "disableVoN" | boolInt }};'
+      serverTimeAcceleration: 'serverTimeAcceleration = {{ .Setting "timeAcceleration" }};'
+      serverNightTimeAcceleration: 'serverNightTimeAcceleration = {{ .Setting "nightTimeAcceleration" }};'
+      serverTimePersistent: 'serverTimePersistent = {{ .SettingBool "persistentTime" | boolInt }};'
+      # One line on purpose: the line format replaces whole lines.
+      'class Missions': 'class Missions { class DayZ { template = "{{ .Setting "mission" }}"; }; };'
+  - path: battleye/beserver_x64.cfg
+    format: kv
+    delimiter: ' '
+    values:
+      RConPort: '{{ (.Port "rcon").Container }}'
+      RConPassword: '{{ .Setting "rconPassword" }}'
+      RestrictRCon: '0'
+
+protectedFiles:
+  - { path: /DayZServer, readOnly: true }
+  - { path: /dta/**, readOnly: true }
+  - { path: /addons/**, readOnly: true }
+  - { path: /steamworks/**, readOnly: true }
+
+backupIgnore:
+  - addons/**
+  - dta/**
+  - steamapps/**
+  - steamworks/**
+  - profiles/*.RPT
+  - profiles/*.log
+  - profiles/*.ADM
+
+requirements:
+  minCpuThreads: 2
+  minRam: 4096
+  minDiskspace: 20
