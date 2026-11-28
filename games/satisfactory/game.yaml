@@ -1,7 +1,7 @@
 # Satisfactory — migration target for the existing platform game.
 # Legacy sources: ipsd game/satisfactory.go, satisfactory/entrypoint.sh. Ports and setting keys
 # follow the production game; the production port rows are verified before the switch (M4).
-# STATUS: boot-tested (2026-11-27, game2)
+# STATUS: boot-tested (2026-11-28, game2) with the own image ipshosting/game-satisfactory:v3
 apiVersion: 1
 
 short: satisfactory
@@ -15,7 +15,7 @@ sources:
     license: MIT
 
 run:
-  image: ghcr.io/parkervcp/steamcmd:debian@sha256:c59cff8cd1202c8f283b8b36344166a9fc16e3f781aa1be7d10187cd9d7566d8
+  image: ipshosting/game-satisfactory:v3
   dataPath: /home/ips-hosting
   workingDir: Engine/Binaries/Linux
   env:
