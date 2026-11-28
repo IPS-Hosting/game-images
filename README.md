@@ -17,6 +17,8 @@ Game server docker images for the following games:
 - [Valheim](valheim/README.md)
 - [V Rising](vrising/README.md)
 
+Install stages of the game definitions run in [ipshosting/installer](installer/README.md).
+
 See the README of individual games for more information.
 
 To run Minecraft servers, the following image is recommended: https://github.com/itzg/docker-minecraft-server.
