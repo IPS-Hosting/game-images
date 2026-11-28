@@ -78,7 +78,7 @@ repository's `THIRD_PARTY_NOTICES.md`, one section per upstream repository.
 | `workingDir` | Literal, relative to `dataPath` (default `dataPath`). |
 | `env` | Name → template. `TZ`, `HOME` and `IPS_*` are reserved; loader variables (`LD_*`, `DYLD_*`) must be literals (also in script stages). |
 | `machineId` | `true`: the engine creates a stable random id once in the server's private directory and binds it read-only to `/etc/machine-id`. Definitions cannot bind-mount anything else. |
-| `tmpfs` | Up to 8 unique, clean absolute paths that get a tmpfs (the root filesystem is read-only; Wine needs e.g. `/tmp`). Not `/`, not overlapping `/ips` or `dataPath`. |
+| `tmpfs` | Up to 8 unique, clean absolute paths that get a fresh tmpfs per start (the root filesystem is read-only; Wine/Xvfb need e.g. `/tmp`). Not `/`, not overlapping `/ips`, `dataPath`, `/etc/machine-id`, `/etc/passwd`, `/etc/group`, `/proc`, `/sys` or `/dev`. Mounted `exec,nosuid,nodev` (games load native libraries from `/tmp`), at most 512 MiB each, counted against the memory limit. Without a tmpfs, `/tmp` is a private, persistent directory of the server. |
 | `exec` / `shell` | Start command (§4). |
 | `console`, `stop`, `ready` | §6. |
 
@@ -96,7 +96,8 @@ container, confined to the data directory with `os.Root`, so neither `..` nor sy
 
 ### 3.2 `install`: ordered stages
 
-Each stage runs as its own short-lived container (default image `ipshosting/installer:v1`) with the data
+Each stage runs as its own short-lived container (default image `ipshosting/installer:v1`; the stage command
+replaces the image entrypoint, so any image can host a stage) with the data
 directory mounted at `dataPath`, unprivileged and with network access. Each stage has an optional `when`
 condition (§5.3). Install, update and validate run the same stages; validate adds `validate` to steamcmd.
 An empty `install` means that the image installs itself. `hooks.postInstall` runs after the stages.
@@ -112,9 +113,11 @@ steamcmd options:
   STRINGENUM) unless it is empty or `public` (case-insensitive); the password (HIDDENSTRING) is used only
   with a branch. Mutually exclusive with `branch`.
 - `steamSdk: true`: after the install, `ips-init` links `<dir>/linux64/steamclient.so` to
-  `.steam/sdk64/steamclient.so` and `<dir>/linux32/steamclient.so` to `.steam/sdk32/steamclient.so`. The
-  install plan carries these as generated `ensureDir` + `symlink` post-install operations, before the
-  definition's own `hooks.postInstall`.
+  `.steam/sdk64/steamclient.so` and `<dir>/steamclient.so` (Steam app directories keep the 32-bit library
+  at the top level) to `.steam/sdk32/steamclient.so`. The install plan carries these as generated
+  `ensureDir` + `symlink` post-install operations, before the definition's own `hooks.postInstall`.
+- The installer image's `steamcmd` retries exit code 8 ("Missing configuration", frequent with a fresh
+  `HOME`) up to two times; a stage fails only when the last run fails.
 - `HOME` of a steamcmd stage is `/ips/steam-home`: a private per-stage directory outside the data directory
   (Steam config and token cache), deleted after the stage.
 

@@ -41,6 +41,10 @@ var reservedEnv = map[string]struct{}{"TZ": {}, "HOME": {}}
 // EnginePath is the container directory reserved for the engine (ips-init, private files).
 const EnginePath = "/ips"
 
+// ReservedTmpfsTargets are the engine and kernel mounts a run.tmpfs entry must not
+// overlap (besides /, EnginePath and the data path).
+var ReservedTmpfsTargets = []string{"/etc/machine-id", "/etc/passwd", "/etc/group", "/proc", "/sys", "/dev"}
+
 const maxTmpfs = 8
 
 var (
@@ -328,6 +332,8 @@ func (v *validator) checkRun() {
 			v.add(at, "must not overlap %s", EnginePath)
 		case overlaps(dir, run.DataPath):
 			v.add(at, "must not overlap the data path")
+		case slices.ContainsFunc(ReservedTmpfsTargets, func(reserved string) bool { return overlaps(dir, reserved) }):
+			v.add(at, "must not overlap %s", strings.Join(ReservedTmpfsTargets, ", "))
 		case seen[dir]:
 			v.add(at, "duplicate entry")
 		}

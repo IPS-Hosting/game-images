@@ -207,11 +207,17 @@ func applyXML(existing []byte, values map[string]string) ([]byte, error) {
 	if out.Len() > 0 && !bytes.HasSuffix(out.Bytes(), []byte("\n")) {
 		out.WriteByte('\n')
 	}
+	result := out.Bytes()
+	// An XML declaration must be the very first thing in the file; strict parsers (.NET)
+	// reject whitespace before it, which some shipped templates have.
+	if trimmed := bytes.TrimLeft(result, " \t\r\n"); bytes.HasPrefix(trimmed, []byte("<?xml")) {
+		result = trimmed
+	}
 	// The decoder normalizes line endings; restore CRLF files.
 	if bytes.Contains(existing, []byte("\r\n")) {
-		return bytes.ReplaceAll(bytes.ReplaceAll(out.Bytes(), []byte("\r\n"), []byte("\n")), []byte("\n"), []byte("\r\n")), nil
+		return bytes.ReplaceAll(bytes.ReplaceAll(result, []byte("\r\n"), []byte("\n")), []byte("\n"), []byte("\r\n")), nil
 	}
-	return out.Bytes(), nil
+	return result, nil
 }
 
 func (n *xmlNode) hasAttr(name string, value string) bool {

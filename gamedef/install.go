@@ -230,15 +230,19 @@ func (r *renderer) branch(at string, stage InstallStage) (string, string, error)
 }
 
 // steamSDKHooks links the Steam client libraries of a steamcmd install directory to where
-// SteamAPI_Init looks for them (~/.steam/sdk64 and sdk32). Links follow updates of the
-// install directory; a missing linux32 library leaves a harmless dangling link.
+// SteamAPI_Init looks for them (~/.steam/sdk64 and sdk32). Steam app directories (the Steamworks SDK
+// redistributable 1007 and dedicated servers) keep the 64-bit library in linux64/ and the 32-bit one at the top
+// level; linux32/ exists only in the steamcmd directory itself. Links follow updates of the install directory; a
+// missing 32-bit library leaves a harmless dangling link.
 func steamSDKHooks(dir string) []PlanHookOp {
 	var ops []PlanHookOp
-	for _, bits := range []string{"64", "32"} {
-		sdk := ".steam/sdk" + bits
+	for _, lib := range []struct{ sdk, target string }{
+		{".steam/sdk64", path.Join(dir, "linux64", "steamclient.so")},
+		{".steam/sdk32", path.Join(dir, "steamclient.so")},
+	} {
 		ops = append(ops,
-			PlanHookOp{EnsureDir: &EnsureDir{Path: sdk}},
-			PlanHookOp{Symlink: &Symlink{Target: path.Join(dir, "linux"+bits, "steamclient.so"), Link: sdk + "/steamclient.so"}},
+			PlanHookOp{EnsureDir: &EnsureDir{Path: lib.sdk}},
+			PlanHookOp{Symlink: &Symlink{Target: lib.target, Link: lib.sdk + "/steamclient.so"}},
 		)
 	}
 	return ops

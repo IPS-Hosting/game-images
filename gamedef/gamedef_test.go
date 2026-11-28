@@ -157,6 +157,8 @@ func TestMachineIDAndTmpfs(t *testing.T) {
 		"[tmp]":                                "clean absolute path",
 		"[/tmp/../etc]":                        "clean absolute path",
 		"[/tmp, /tmp]":                         "duplicate",
+		"[/dev/shm]":                           "/etc/machine-id",
+		"[/etc]":                               "/etc/machine-id",
 		"[/a, /b, /c, /d, /e, /f, /g, /h, /i]": "at most 8",
 	} {
 		expectError(t, withRun(base, "  tmpfs: "+tmpfs+"\n"), "/run/tmpfs", fragment)
@@ -716,7 +718,7 @@ hooks:
 		{EnsureDir: &EnsureDir{Path: ".steam/sdk64"}},
 		{Symlink: &Symlink{Target: "server/linux64/steamclient.so", Link: ".steam/sdk64/steamclient.so"}},
 		{EnsureDir: &EnsureDir{Path: ".steam/sdk32"}},
-		{Symlink: &Symlink{Target: "server/linux32/steamclient.so", Link: ".steam/sdk32/steamclient.so"}},
+		{Symlink: &Symlink{Target: "server/steamclient.so", Link: ".steam/sdk32/steamclient.so"}},
 		{EnsureDir: &EnsureDir{Path: "saves"}},
 	}
 	if got := renderInstall(t, d, nil).PostInstall; !reflect.DeepEqual(got, want) {
@@ -1028,5 +1030,25 @@ func TestApplyINISectionHeaderComment(t *testing.T) {
 	got := apply(t, FormatINI, map[string]string{"S.k": "2"}, "[S] ; main\nk=1\n")
 	if got != "[S] ; main\nk=2\n" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestPropertiesValueTrailingBackslash(t *testing.T) {
+	d := mustParse(t, withRun(base, "")+"config: [{ path: server.properties, format: properties, values: { motd: '{{ .Setting \"name\" }}' } }]\n")
+	values := DefaultValues(d)
+	values.Settings["name"] = `Welcome\`
+	if _, err := Render(d, values); err == nil || !strings.Contains(err.Error(), "backslash") {
+		t.Fatalf("expected trailing backslash error, got %v", err)
+	}
+	values.Settings["name"] = `Welcome\\`
+	if _, err := Render(d, values); err != nil {
+		t.Fatalf("an escaped backslash must be accepted: %v", err)
+	}
+}
+
+func TestXMLDropsWhitespaceBeforeDeclaration(t *testing.T) {
+	got := apply(t, FormatXML, map[string]string{"Root.Name": "x"}, "\n<?xml version=\"1.0\"?>\n<Root>\n  <Name>old</Name>\n</Root>")
+	if want := "<?xml version=\"1.0\"?>\n<Root>\n  <Name>x</Name>\n</Root>\n"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }

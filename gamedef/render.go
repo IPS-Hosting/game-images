@@ -438,6 +438,12 @@ func checkConfigValue(file ConfigFile, key string, value string) error {
 		}
 	case FormatXML:
 		return checkXMLText(value)
+	case FormatProperties:
+		// java.util.Properties continues a line that ends with an odd number of
+		// backslashes, so the value would swallow the next key.
+		if trailing := len(value) - len(strings.TrimRight(value, `\`)); trailing%2 == 1 {
+			return fmt.Errorf("the value must not end with a backslash")
+		}
 	}
 	return nil
 }
